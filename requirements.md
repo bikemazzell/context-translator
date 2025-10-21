@@ -3,6 +3,12 @@
 ## Project Overview
 A bookmarklet-based translation tool that provides inline word/phrase translation on any webpage, similar to Readlang.com. Runs locally with a Python backend communicating with LLM inference servers (LMStudio or llama-server).
 
+**Requirements:**
+- Python 3.12+ (developed and tested with Python 3.12.x)
+- Node.js 18+ (for frontend build tools)
+- Modern browser (Chrome or Firefox, latest 2 versions)
+- LLM server (LMStudio or llama.cpp server) running locally
+
 ## Core Functionality
 
 ### 1. Bookmarklet Behavior
@@ -182,11 +188,15 @@ For models with weaker instruction-following, consider:
 
 ### 3. Caching System
 **Implementation:**
-- Simple disk-based cache (JSON or SQLite)
-- Cache key: Hash of `(text, source_lang, target_lang, context_flag)`
-- Cache value: `{translation, timestamp}`
-- Optional TTL for cache entries (configurable, default: 30 days)
+- Simple disk-based cache (SQLite with async support via aiosqlite)
+- Cache key: SHA256 hash of `(text, source_lang, target_lang, context_text)`
+  - Includes actual context text, not just a boolean flag
+  - This provides better cache granularity: same word with different contexts = different cache entries
+  - Empty string for context_text when context mode is disabled
+- Cache value: `{translation, timestamp, original metadata}`
+- TTL for cache entries (configurable, default: 30 days)
 - Cache size limit with LRU eviction
+- WAL mode enabled for better concurrent access
 
 **Structure:**
 ```
@@ -309,10 +319,13 @@ llm:
   primary:
     provider: lmstudio  # or llama-server
     endpoint: http://localhost:1234/v1/chat/completions
+    model_name: gemma-2-27b-it
     timeout: 30
   fallback:
     provider: llama-server
     endpoint: http://localhost:8080/completion
+    model_name: gemma-2-27b-it
+    timeout: 30
 
 cache:
   backend: sqlite

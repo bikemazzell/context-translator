@@ -1,0 +1,36 @@
+server:
+  host: localhost
+  port: 8080
+
+llm:
+  primary:
+    provider: lmstudio
+    endpoint: http://localhost:1234/v1/chat/completions
+    model_name: gemma-2-27b-it
+    timeout: 30
+  fallback:
+    provider: llama-server
+    endpoint: http://localhost:8080/completion
+    model_name: gemma-2-27b-it
+    timeout: 30
+
+cache:
+  backend: sqlite
+  path: ./cache/translations.db
+  ttl_days: 30
+  max_size_mb: 100
+
+translation:
+  max_text_length: 500
+  context_window_chars: 200
+  supported_languages:
+    - English
+    - German
+    - French
+    - Spanish
+    - Italian
+    - Portuguese
+    - Russian
+    - Chinese
+    - Japanese
+    - Korean

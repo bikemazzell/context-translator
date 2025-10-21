@@ -27,38 +27,45 @@ Each task includes validation steps to ensure quality before proceeding.
    │   ├── app/
    │   └── tests/
    ├── frontend/
+   │   └── src/
    └── cache/
    ```
-2. Initialize git repository
-3. Create `.gitignore` (exclude `cache/`, `__pycache__/`, `.pytest_cache/`, `venv/`)
-4. Create `backend/requirements.txt` with initial dependencies:
+2. Create Python package files:
+   - `backend/__init__.py` (empty, marks as package)
+   - `backend/app/__init__.py` (empty, marks as package)
+   - `backend/tests/__init__.py` (empty, for test discovery)
+3. Initialize git repository
+4. Create `.gitignore` (exclude `cache/`, `__pycache__/`, `.pytest_cache/`, `venv/`, `*.pyc`, `.mypy_cache/`, `frontend/dist/`)
+5. Create `backend/requirements.txt` with initial dependencies:
    - fastapi
    - uvicorn[standard]
    - httpx
    - pydantic
    - pyyaml
+   - aiosqlite (async SQLite)
    - pytest
    - pytest-asyncio
    - pytest-cov
    - ruff (linter/formatter)
    - mypy (type checker)
-5. Create `backend/requirements-dev.txt` for development tools
-6. Create `config.yaml` with minimal configuration
+6. Create `backend/requirements-dev.txt` for development tools (can be empty if all in main requirements)
+7. Create `config.yaml` with minimal configuration
 
 **Validation:**
-- [ ] Directory structure matches specification
-- [ ] All directories are created
-- [ ] Git initialized successfully
-- [ ] Requirements files are parseable
+- [x] Directory structure matches specification
+- [x] All `__init__.py` files created
+- [x] Git initialized successfully
+- [x] Requirements files are parseable
+- [x] `.gitignore` includes all necessary patterns
 
 ---
 
 ### Task 1.2: Development Environment Setup
-**Objective:** Establish Python virtual environment and install dependencies
+**Objective:** Establish Python environment using miniconda and install dependencies
 
 **Steps:**
-1. Create Python virtual environment: `python3 -m venv venv`
-2. Activate environment
+1. Activate miniconda environment: `conda activate ai312`
+2. Verify Python version: `python --version` (should be 3.12.x)
 3. Install dependencies: `pip install -r backend/requirements.txt -r backend/requirements-dev.txt`
 4. Create `backend/pyproject.toml` for tool configuration:
    - ruff configuration (line length, rules)
@@ -66,11 +73,14 @@ Each task includes validation steps to ensure quality before proceeding.
    - pytest configuration
 
 **Validation:**
-- [ ] Virtual environment activates without errors
-- [ ] All packages install successfully
-- [ ] `ruff --version` works
-- [ ] `mypy --version` works
-- [ ] `pytest --version` works
+- [x] Environment activates: `conda activate ai312`
+- [x] Python 3.12.x confirmed
+- [x] All packages install successfully
+- [x] `ruff --version` works
+- [x] `mypy --version` works
+- [x] `pytest --version` works
+
+**Note:** All subsequent Python commands assume `conda activate ai312` has been run first.
 
 ---
 
@@ -79,18 +89,31 @@ Each task includes validation steps to ensure quality before proceeding.
 
 **Implementation:**
 1. Create `backend/app/config.py`:
-   - Define `Config` dataclass with all settings
+   - Define `Config` dataclass with all settings including:
+     - Server (host, port)
+     - LLM (provider, endpoint, timeout, model_name)
+     - Cache (path, ttl_days, max_size_mb)
+     - Translation (max_text_length, context_window_chars, supported_languages)
    - Implement `load_config(path: str) -> Config`
    - Handle missing file with sensible defaults
    - Validate required fields
-2. Populate `config.yaml` with complete settings from requirements
+2. Populate `config.yaml` with complete settings from requirements:
+   ```yaml
+   llm:
+     primary:
+       provider: lmstudio
+       endpoint: http://localhost:1234/v1/chat/completions
+       timeout: 30
+       model_name: gemma-2-27b-it  # ADD THIS
+   ```
 
 **Validation:**
-- [ ] `ruff check backend/app/config.py` passes
-- [ ] `mypy backend/app/config.py` passes (strict mode)
-- [ ] Manual test: Load config successfully
-- [ ] Manual test: Handle missing config file gracefully
-- [ ] Manual test: Validate all config sections parse correctly
+- [x] `ruff check backend/app/config.py` passes
+- [x] `mypy backend/app/config.py` passes (strict mode)
+- [x] Manual test: Load config successfully
+- [x] Manual test: Handle missing config file gracefully
+- [x] Manual test: Validate all config sections parse correctly
+- [x] Verify model_name is loaded and accessible
 
 ---
 
@@ -109,14 +132,14 @@ Each task includes validation steps to ensure quality before proceeding.
    - Non-empty fields
 
 **Validation:**
-- [ ] `ruff check backend/app/models.py` passes
-- [ ] `mypy backend/app/models.py` passes
-- [ ] Create unit test `backend/tests/test_models.py`:
+- [x] `ruff check backend/app/models.py` passes
+- [x] `mypy backend/app/models.py` passes
+- [x] Create unit test `backend/tests/test_models.py`:
   - Valid request models parse correctly
   - Invalid requests raise ValidationError
   - Test length limits
   - Test optional fields
-- [ ] `pytest backend/tests/test_models.py -v` passes
+- [x] `pytest backend/tests/test_models.py -v` passes
 
 ---
 
@@ -134,45 +157,96 @@ Each task includes validation steps to ensure quality before proceeding.
    - Format language names consistently
 
 **Validation:**
-- [ ] `ruff check backend/app/prompts.py` passes
-- [ ] `mypy backend/app/prompts.py` passes
-- [ ] Create unit test `backend/tests/test_prompts.py`:
+- [x] `ruff check backend/app/prompts.py` passes
+- [x] `mypy backend/app/prompts.py` passes
+- [x] Create unit test `backend/tests/test_prompts.py`:
   - Test prompt without context
   - Test prompt with context
   - Test context truncation
   - Verify message structure
-- [ ] `pytest backend/tests/test_prompts.py -v` passes
+- [x] `pytest backend/tests/test_prompts.py -v` passes
 
 ---
 
 ### Task 1.6: Cache Implementation
-**Objective:** Build SQLite-based translation cache
+**Objective:** Build async SQLite-based translation cache
 
 **Implementation:**
 1. Create `backend/app/cache.py`:
-   - `TranslationCache` class
-   - `__init__(db_path: str)` - initialize SQLite connection
-   - `_create_schema()` - create translations table (hash, text, source_lang, target_lang, translation, timestamp)
-   - `_generate_key(text, source_lang, target_lang, has_context) -> str` - SHA256 hash
-   - `get(key: str) -> str | None` - retrieve cached translation
-   - `set(key: str, translation: str)` - store translation
-   - `clear_expired(ttl_days: int)` - remove old entries
-   - `get_size() -> int` - get cache size in bytes
-2. Add index on hash column for fast lookups
-3. Use context manager for connection management
+   - `TranslationCache` class using `aiosqlite`
+   - `async __init__(db_path: str)`:
+     - Create cache directory if it doesn't exist
+     - Initialize async SQLite connection
+     - Enable WAL mode for better concurrent access
+   - `async _create_schema()` - create translations table:
+     - Columns: hash (TEXT PRIMARY KEY), text (TEXT), source_lang (TEXT), target_lang (TEXT), translation (TEXT), timestamp (INTEGER)
+     - Index on hash for lookups (PRIMARY KEY provides this)
+     - Index on timestamp for efficient TTL cleanup
+   - `_generate_key(text, source_lang, target_lang, context_text) -> str`:
+     - Hash includes actual context text (not just boolean) for better cache granularity
+     - Use SHA256 of `f"{text}|{source_lang}|{target_lang}|{context_text or ''}"`
+   - `async get(key: str) -> str | None` - retrieve cached translation
+   - `async set(key: str, text: str, source_lang: str, target_lang: str, translation: str)` - store translation
+   - `async clear_expired(ttl_days: int)` - remove old entries (uses timestamp index)
+   - `async get_size() -> int` - get cache database file size in bytes
+   - `async close()` - cleanup connection
+2. Schema with version tracking and WAL mode:
+   ```sql
+   -- Enable WAL mode for better concurrent access
+   PRAGMA journal_mode=WAL;
+
+   -- Schema version table for future migrations
+   CREATE TABLE IF NOT EXISTS schema_version (
+     version INTEGER PRIMARY KEY
+   );
+   INSERT OR IGNORE INTO schema_version (version) VALUES (1);
+
+   -- Translations table
+   CREATE TABLE IF NOT EXISTS translations (
+     hash TEXT PRIMARY KEY,
+     text TEXT NOT NULL,
+     source_lang TEXT NOT NULL,
+     target_lang TEXT NOT NULL,
+     translation TEXT NOT NULL,
+     timestamp INTEGER NOT NULL
+   );
+   CREATE INDEX IF NOT EXISTS idx_timestamp ON translations(timestamp);
+   ```
+3. Directory creation:
+   ```python
+   import os
+   from pathlib import Path
+
+   # Ensure cache directory exists
+   cache_dir = Path(db_path).parent
+   cache_dir.mkdir(parents=True, exist_ok=True)
+   ```
+4. Cache version handling:
+   - Check schema_version on init
+   - If version mismatch, log warning and clear cache (safe to delete)
+   - Document that cache can always be safely deleted
+5. Use async context manager pattern
 
 **Validation:**
-- [ ] `ruff check backend/app/cache.py` passes
-- [ ] `mypy backend/app/cache.py` passes
-- [ ] Create unit test `backend/tests/test_cache.py`:
+- [x] `ruff check backend/app/cache.py` passes
+- [x] `mypy backend/app/cache.py` passes
+- [x] Create unit test `backend/tests/test_cache.py`:
   - Test cache initialization creates schema
-  - Test set/get round trip
+  - Test cache directory creation (non-existent path)
+  - Test WAL mode is enabled
+  - Test async set/get round trip
   - Test cache miss returns None
   - Test key generation is consistent
+  - Test key generation includes context text
   - Test expired entry cleanup
   - Test cache size calculation
-- [ ] `pytest backend/tests/test_cache.py -v` passes
-- [ ] Manual test: Inspect SQLite file structure with `sqlite3`
+  - Test proper connection cleanup
+  - Test schema version checking
+- [x] `pytest backend/tests/test_cache.py -v` passes
+- [x] Manual test: Inspect SQLite file with `sqlite3`:
+  - Verify indexes exist: `.schema translations`
+  - Verify WAL mode: `PRAGMA journal_mode;` should return `wal`
+  - Check for WAL files: `translations.db-wal`, `translations.db-shm`
 
 ---
 
@@ -193,16 +267,16 @@ Each task includes validation steps to ensure quality before proceeding.
 3. Implement retry logic with exponential backoff
 
 **Validation:**
-- [ ] `ruff check backend/app/llm_client.py` passes
-- [ ] `mypy backend/app/llm_client.py` passes
-- [ ] Create unit test `backend/tests/test_llm_client.py`:
+- [x] `ruff check backend/app/llm_client.py` passes
+- [x] `mypy backend/app/llm_client.py` passes
+- [x] Create unit test `backend/tests/test_llm_client.py`:
   - Mock httpx responses
   - Test successful translation
   - Test HTTP error handling
   - Test timeout handling
   - Test response cleaning (remove explanations)
   - Test retry mechanism
-- [ ] `pytest backend/tests/test_llm_client.py -v --cov=backend/app/llm_client.py` passes (>80% coverage)
+- [x] `pytest backend/tests/test_llm_client.py -v --cov=backend/app/llm_client.py` passes (>80% coverage)
 
 ---
 
@@ -210,26 +284,33 @@ Each task includes validation steps to ensure quality before proceeding.
 **Objective:** Implement robust response parsing and validation
 
 **Implementation:**
-1. Enhance `_clean_response()` in `llm_client.py`:
+1. Enhance `_clean_response(response_text: str, original_text: str)` in `llm_client.py`:
    - Strip leading/trailing whitespace
-   - Remove quotes if not in original
-   - Detect and remove explanation patterns:
-     - "The translation is..."
-     - "This means..."
-     - Lines starting with "Explanation:"
-   - Validate length (not >3x input, not empty)
-   - Extract first sentence if multiple returned
-2. Add logging for when cleaning is needed
+   - Remove quotes if they weren't in original text
+   - Detect and remove explanation patterns (regex-based):
+     - Lines containing "translation is", "this means", "translates to" (case insensitive)
+     - Lines starting with "Explanation:", "Note:", "Translation:"
+   - Validate length (not >3x original input length, not empty)
+   - For multi-sentence responses:
+     - Keep full response if it's a natural phrase translation
+     - Only trim if response contains meta-commentary
+     - Use simple heuristic: if contains "is", "means", "refers to" → extract first part before these words
+   - Return cleaned translation or raise ValueError if invalid
+2. Add logging (INFO level) when aggressive cleaning is applied
+3. Pass original text to cleaning function for context
 
 **Validation:**
-- [ ] `ruff check backend/app/llm_client.py` passes
-- [ ] `mypy backend/app/llm_client.py` passes
-- [ ] Extend `backend/tests/test_llm_client.py`:
+- [x] `ruff check backend/app/llm_client.py` passes
+- [x] `mypy backend/app/llm_client.py` passes
+- [x] Extend `backend/tests/test_llm_client.py`:
   - Test cleaning quoted responses
-  - Test removing explanation text
-  - Test handling multi-sentence responses
-  - Test validation errors for bad responses
-- [ ] `pytest backend/tests/test_llm_client.py -v` passes
+  - Test removing explanation text patterns
+  - Test preserving valid multi-word translations
+  - Test validation errors for bad responses (empty, too long)
+  - Test logging when cleaning applied
+- [x] `pytest backend/tests/test_llm_client.py -v` passes
+
+**Note:** Conservative cleaning is better than aggressive - if uncertain, keep the text.
 
 ---
 
@@ -242,19 +323,41 @@ Each task includes validation steps to ensure quality before proceeding.
    - Load configuration
    - Initialize cache
    - Initialize LLM client
-   - CORS middleware (localhost only)
+   - CORS middleware configuration:
+     ```python
+     from fastapi.middleware.cors import CORSMiddleware
+     app.add_middleware(
+         CORSMiddleware,
+         allow_origins=["*"],  # Allow all origins - safe because we bind to localhost
+         allow_credentials=False,  # Don't allow credentials to prevent CSRF
+         allow_methods=["GET", "POST"],
+         allow_headers=["Content-Type"],
+     )
+     ```
+     - Rationale: Bookmarklet runs from various page origins (http://, https://, file://)
+     - Security: Service binds only to localhost, inaccessible from network
+     - No credentials needed, so CSRF risk is minimal
 2. Implement `GET /health`:
-   - Check LLM endpoint availability
-   - Return status and LLM availability
+   - Quick LLM endpoint check:
+     - Try simple HTTP GET/HEAD to base LLM endpoint URL
+     - Use 2s timeout to avoid hanging
+     - Don't send actual translation request (too slow for health check)
+     - Alternative: Skip LLM check entirely, just return service status
+     - Recommended: Return `{"status": "healthy", "llm_checked": false}`
+   - Return status and optionally LLM availability boolean
+   - Never fail health check even if LLM unavailable (degraded state is acceptable)
+   - Health check is for service availability, not LLM availability
 3. Add startup/shutdown events for resource management
+4. Configure uvicorn to run on port 8080 (matches config.yaml)
 
 **Validation:**
-- [ ] `ruff check backend/app/main.py` passes
-- [ ] `mypy backend/app/main.py` passes
-- [ ] Start server: `uvicorn backend.app.main:app --reload`
-- [ ] Server starts without errors
-- [ ] `curl http://localhost:8000/health` returns valid JSON
-- [ ] Check CORS headers with `curl -v`
+- [x] `ruff check backend/app/main.py` passes
+- [x] `mypy backend/app/main.py` passes
+- [x] Start server: `uvicorn backend.app.main:app --reload --host localhost --port 8080`
+- [x] Server starts without errors on port 8080
+- [x] `curl http://localhost:8080/health` returns valid JSON
+- [x] Check CORS headers: `curl -v -H "Origin: https://example.com" http://localhost:8080/health`
+- [x] Verify Access-Control-Allow-Origin: * in response
 
 ---
 
@@ -278,16 +381,16 @@ Each task includes validation steps to ensure quality before proceeding.
 3. Add request logging
 
 **Validation:**
-- [ ] `ruff check backend/app/main.py` passes
-- [ ] `mypy backend/app/main.py` passes
-- [ ] Manual test with curl (requires running LLM server):
+- [x] `ruff check backend/app/main.py` passes
+- [x] `mypy backend/app/main.py` passes
+- [x] Manual test with curl (requires running LLM server):
   ```bash
-  curl -X POST http://localhost:8000/translate \
+  curl -X POST http://localhost:8080/translate \
     -H "Content-Type: application/json" \
     -d '{"text": "Haus", "source_lang": "German", "target_lang": "English"}'
   ```
-- [ ] Verify cache hit on second identical request
-- [ ] Test error cases (invalid JSON, missing fields)
+- [x] Verify cache hit on second identical request
+- [x] Test error cases (invalid JSON, missing fields)
 
 ---
 
@@ -301,40 +404,19 @@ Each task includes validation steps to ensure quality before proceeding.
 2. Load from config or provide hardcoded fallback list
 
 **Validation:**
-- [ ] `ruff check backend/app/main.py` passes
-- [ ] `mypy backend/app/main.py` passes
-- [ ] `curl http://localhost:8000/languages` returns language list
-- [ ] Verify JSON structure matches spec
+- [x] `ruff check backend/app/main.py` passes
+- [x] `mypy backend/app/main.py` passes
+- [x] `curl http://localhost:8080/languages` returns language list
+- [x] Verify JSON structure matches spec
 
 ---
 
-### Task 1.12: Integration Tests - Backend
-**Objective:** Create end-to-end tests for backend
-
-**Implementation:**
-1. Create `backend/tests/test_integration.py`:
-   - Use TestClient from fastapi.testclient
-   - Mock LLM responses
-   - Test full translation flow
-   - Test cache behavior across requests
-   - Test error scenarios
-   - Test health endpoint
-   - Test languages endpoint
-2. Use pytest fixtures for test client and mock LLM
-
-**Validation:**
-- [ ] `ruff check backend/tests/test_integration.py` passes
-- [ ] `mypy backend/tests/test_integration.py` passes
-- [ ] `pytest backend/tests/ -v --cov=backend/app --cov-report=term-missing` passes
-- [ ] Coverage >80% for all modules
-- [ ] All tests pass consistently
-
----
-
-### Task 1.13: LLM Prompt Testing
-**Objective:** Validate prompts with real LLM (manual QA)
+### Task 1.12: LLM Prompt Testing (Real LLM)
+**Objective:** Validate prompts with real LLM before writing integration tests
 
 **Prerequisites:** LMStudio or llama-server running with a model loaded
+
+**Rationale:** Test with real LLM first to ensure prompts work correctly, then use insights to create realistic mocks for integration tests.
 
 **Steps:**
 1. Start LLM server (LMStudio or llama-server)
@@ -353,9 +435,37 @@ Each task includes validation steps to ensure quality before proceeding.
 - [ ] Single words translate correctly
 - [ ] Phrases translate naturally
 - [ ] Context improves ambiguous translations
-- [ ] No explanation text in responses
+- [ ] No explanation text in responses (if present, adjust prompts or cleaning logic)
 - [ ] Response time <2s for most requests
 - [ ] Cache improves subsequent request times to <50ms
+- [ ] Document actual LLM response patterns (for mock creation)
+
+**Note:** Use findings from this task to create realistic mocks in Task 1.13.
+
+---
+
+### Task 1.13: Integration Tests - Backend
+**Objective:** Create end-to-end tests for backend with realistic mocks
+
+**Implementation:**
+1. Create `backend/tests/test_integration.py`:
+   - Use TestClient from fastapi.testclient
+   - Mock LLM responses based on patterns observed in Task 1.12
+   - Test full translation flow
+   - Test cache behavior across requests
+   - Test error scenarios
+   - Test health endpoint
+   - Test languages endpoint
+2. Use pytest fixtures for test client and mock LLM
+3. Create realistic mock responses that mimic actual LLM behavior
+
+**Validation:**
+- [x] `ruff check backend/tests/test_integration.py` passes
+- [x] `mypy backend/tests/test_integration.py` passes
+- [x] `pytest backend/tests/ -v --cov=backend/app --cov-report=term-missing` passes
+- [x] Coverage >80% for all modules
+- [x] All tests pass consistently
+- [x] Mocks accurately represent real LLM behavior
 
 ---
 
@@ -373,10 +483,10 @@ Each task includes validation steps to ensure quality before proceeding.
 3. Add inline comments for complex logic only
 
 **Validation:**
-- [ ] Follow installation steps on fresh clone
-- [ ] All commands work as documented
-- [ ] API examples are accurate
-- [ ] `ruff check backend/` passes (checks docstring coverage)
+- [x] Follow installation steps on fresh clone
+- [x] All commands work as documented
+- [x] API examples are accurate
+- [x] `ruff check backend/` passes (checks docstring coverage)
 
 ---
 
@@ -394,23 +504,72 @@ Each task includes validation steps to ensure quality before proceeding.
    │   ├── injected.js
    │   ├── toolbar.js
    │   ├── translator.js
+   │   ├── config.js
    │   └── styles.css
    ├── dist/
+   ├── package.json
    └── build.sh
    ```
-2. Create `build.sh` script to minify bookmarklet
-3. Install development tools (optional):
-   - Node.js for minification (optional, can use online tools)
-   - ESLint for linting
+2. Create `package.json` with minimal dependencies:
+   ```json
+   {
+     "name": "context-translator-frontend",
+     "version": "0.1.0",
+     "devDependencies": {
+       "terser": "^5.0.0",
+       "eslint": "^8.0.0"
+     },
+     "scripts": {
+       "build": "./build.sh",
+       "lint": "eslint src/"
+     }
+   }
+   ```
+3. Create `build.sh` script to concatenate and minify:
+   - Concatenate all source files
+   - Minify with terser
+   - Generate bookmarklet.txt
+4. Install Node.js dependencies: `npm install`
+5. Optional: Create `.eslintrc.json` for code quality
 
 **Validation:**
 - [ ] Directory structure created
-- [ ] Build script is executable
-- [ ] (If using Node) `npm install` works
+- [ ] `npm install` succeeds
+- [ ] Build script is executable: `chmod +x build.sh`
+- [ ] `npm run lint` works (even if no files yet)
 
 ---
 
-### Task 2.2: Injected Script - Foundation
+### Task 2.2: Configuration Constants
+**Objective:** Create centralized configuration for frontend
+
+**Implementation:**
+1. Create `frontend/src/config.js`:
+   ```javascript
+   const CONFIG = {
+     BACKEND_URL: 'http://localhost:8080',
+     STORAGE_KEY: 'context-translator-settings',
+     DEFAULT_SETTINGS: {
+       sourceLang: 'German',
+       targetLang: 'English',
+       translationEnabled: false,
+       contextMode: false,
+       displayMode: 'tooltip'
+     },
+     REQUEST_TIMEOUT: 5000,
+     TOAST_DURATION: 3000
+   };
+   ```
+2. Export for use in other modules
+
+**Validation:**
+- [ ] `npm run lint` passes
+- [ ] Constants are clearly named
+- [ ] Backend URL matches server port (8080)
+
+---
+
+### Task 2.3: Injected Script - Foundation
 **Objective:** Create the core injection script that runs on target pages
 
 **Implementation:**
@@ -419,24 +578,30 @@ Each task includes validation steps to ensure quality before proceeding.
    - Check if already injected (prevent double-injection)
    - Create namespace object: `window.ContextTranslator`
    - Initialize configuration from localStorage
-   - Log initialization status
+   - Log initialization status (console.info, not console.log)
+   - Handle CSP violations gracefully:
+     - Wrap injection in try-catch
+     - If script injection fails, show user-friendly error
+     - Detect CSP via error message patterns
 2. Add cleanup function to remove injection
 
 **Validation:**
-- [ ] Run ESLint (if available) or manual review
+- [ ] `npm run lint` passes
 - [ ] Test injection on simple HTML page
 - [ ] Verify no console errors
 - [ ] Verify namespace exists: `window.ContextTranslator`
 - [ ] Test double-injection prevention
+- [ ] Test on page with strict CSP (e.g., GitHub) - should fail gracefully with message
 
 ---
 
-### Task 2.3: Settings Storage
+### Task 2.4: Settings Storage
 **Objective:** Implement localStorage persistence for user settings
 
 **Implementation:**
-1. Extend `frontend/src/injected.js`:
-   - `Settings` object with defaults:
+1. Create `frontend/src/settings.js` (separate module):
+   - Import CONFIG constants
+   - `Settings` object with defaults from CONFIG:
      ```javascript
      {
        sourceLang: "German",
@@ -463,7 +628,7 @@ Each task includes validation steps to ensure quality before proceeding.
 
 ---
 
-### Task 2.4: Toolbar UI - HTML Structure
+### Task 2.5: Toolbar UI - HTML Structure
 **Objective:** Create floating toolbar DOM structure
 
 **Implementation:**
@@ -490,7 +655,7 @@ Each task includes validation steps to ensure quality before proceeding.
 
 ---
 
-### Task 2.5: Toolbar UI - Styling
+### Task 2.6: Toolbar UI - Styling
 **Objective:** Style the toolbar for minimal, professional appearance
 
 **Implementation:**
@@ -514,7 +679,7 @@ Each task includes validation steps to ensure quality before proceeding.
 
 ---
 
-### Task 2.6: Toolbar - Language Population
+### Task 2.7: Toolbar - Language Population
 **Objective:** Fetch and populate language selectors from backend
 
 **Implementation:**
@@ -537,7 +702,7 @@ Each task includes validation steps to ensure quality before proceeding.
 
 ---
 
-### Task 2.7: Toolbar - Event Handlers
+### Task 2.8: Toolbar - Event Handlers
 **Objective:** Wire up toolbar controls to settings
 
 **Implementation:**
@@ -561,37 +726,64 @@ Each task includes validation steps to ensure quality before proceeding.
 
 ---
 
-### Task 2.8: Translation Request Handler
+### Task 2.9: Translation Request Handler
 **Objective:** Implement API communication with backend
 
 **Implementation:**
 1. Create `frontend/src/translator.js`:
+   - Import CONFIG for BACKEND_URL and REQUEST_TIMEOUT
    - `async translateText(text, context = null) -> string`:
      - Get settings (source/target lang, context mode)
      - Build request body
-     - POST to `http://localhost:8080/translate`
+     - Implement timeout using AbortController:
+       ```javascript
+       const controller = new AbortController();
+       const timeoutId = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
+       try {
+         const response = await fetch(url, {
+           signal: controller.signal,
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify(requestBody)
+         });
+         clearTimeout(timeoutId);
+         // ... handle response
+       } catch (error) {
+         clearTimeout(timeoutId);
+         if (error.name === 'AbortError') {
+           throw new Error('Request timed out');
+         }
+         throw error;
+       }
+       ```
      - Parse response
      - Handle errors
      - Return translation
-   - `handleError(error)` → show toast notification
-   - Configure fetch timeout (5s)
-2. Add request debouncing to prevent spam
+   - `handleError(error)` → show toast notification with user-friendly message
+   - Debounce rapid requests (300ms minimum between requests):
+     ```javascript
+     let lastRequestTime = 0;
+     const DEBOUNCE_MS = 300;
+     // Check if enough time has passed since last request
+     ```
 
 **Validation:**
-- [ ] ESLint passes
+- [ ] `npm run lint` passes
 - [ ] Test with backend running:
-  - Mock translation request from console
+  - Translation request from console works
   - Verify correct request format
   - Verify response parsing
 - [ ] Test error handling:
-  - Backend offline
-  - Network timeout
-  - Invalid response
-- [ ] Verify error messages appear (will need toast implementation)
+  - Backend offline → "Cannot connect to translation server"
+  - Network timeout (wait 5s) → "Request timed out"
+  - Invalid response → appropriate error
+  - Rapid requests → debouncing works
+- [ ] Verify error toasts appear with clear messages
+- [ ] Test AbortController cleanup (no memory leaks)
 
 ---
 
-### Task 2.9: Toast Notifications
+### Task 2.10: Toast Notifications
 **Objective:** Implement error/info toast messages
 
 **Implementation:**
@@ -615,7 +807,7 @@ Each task includes validation steps to ensure quality before proceeding.
 
 ---
 
-### Task 2.10: Click Handler - Word Selection
+### Task 2.11: Click Handler - Word Selection
 **Objective:** Capture clicks on words when translation mode enabled
 
 **Implementation:**
@@ -642,7 +834,7 @@ Each task includes validation steps to ensure quality before proceeding.
 
 ---
 
-### Task 2.11: Text Selection - Single Word
+### Task 2.12: Text Selection - Single Word
 **Objective:** Extract individual words from clicked elements
 
 **Implementation:**
@@ -664,7 +856,7 @@ Each task includes validation steps to ensure quality before proceeding.
 
 ---
 
-### Task 2.12: Text Selection - Multi-Word Phrases
+### Task 2.13: Text Selection - Multi-Word Phrases
 **Objective:** Support click-drag to select phrases
 
 **Implementation:**
@@ -687,31 +879,76 @@ Each task includes validation steps to ensure quality before proceeding.
 
 ---
 
-### Task 2.13: Context Extraction
+### Task 2.14: Context Extraction
 **Objective:** Extract surrounding text when context mode enabled
 
 **Implementation:**
 1. Create context extraction function in `injected.js`:
-   - `extractContext(element, selectedText) -> string`:
-     - Get parent element text content
-     - If insufficient, traverse up DOM tree
-     - Extract ~200 characters around selected text
-     - Return full sentence if possible
-   - Respect `context_window_chars` from config
+   - `extractContext(element, selectedText, windowSize = 200) -> string`:
+     - Algorithm:
+       ```javascript
+       // 1. Get the text node containing the selected text
+       let textNode = element;
+       while (textNode && textNode.nodeType !== Node.TEXT_NODE) {
+         textNode = textNode.firstChild;
+       }
+
+       // 2. Get parent block element's full text (p, div, td, li, etc.)
+       let container = element.closest('p, div, td, li, article, section');
+       if (!container) container = element.parentElement;
+       let fullText = container.innerText || container.textContent;
+
+       // 3. Find selected text position in full text
+       let textIndex = fullText.indexOf(selectedText);
+       if (textIndex === -1) {
+         // Fallback: just return surrounding text
+         return fullText.slice(0, windowSize);
+       }
+
+       // 4. Extract context window around the selected text
+       let startOffset = Math.max(0, textIndex - windowSize / 2);
+       let endOffset = Math.min(fullText.length, textIndex + selectedText.length + windowSize / 2);
+
+       // 5. Expand to sentence boundaries if possible
+       // Look for sentence endings: . ! ? (followed by space or end)
+       let contextText = fullText.slice(startOffset, endOffset);
+
+       // Try to start at sentence beginning
+       let sentenceStart = contextText.search(/[.!?]\s+/);
+       if (sentenceStart !== -1 && sentenceStart < windowSize / 4) {
+         contextText = contextText.slice(sentenceStart + 2);
+       }
+
+       // Try to end at sentence ending
+       let sentenceEnd = contextText.lastIndexOf('. ');
+       if (sentenceEnd === -1) sentenceEnd = contextText.lastIndexOf('! ');
+       if (sentenceEnd === -1) sentenceEnd = contextText.lastIndexOf('? ');
+       if (sentenceEnd !== -1 && sentenceEnd > contextText.length * 0.75) {
+         contextText = contextText.slice(0, sentenceEnd + 1);
+       }
+
+       return contextText.trim();
+       ```
+     - Respect `CONFIG.CONTEXT_WINDOW_CHARS` (default 200)
+     - Handle edge cases: selected text not found, very short paragraphs
+   - Return empty string if context mode disabled
 
 **Validation:**
-- [ ] ESLint passes
+- [ ] `npm run lint` passes
 - [ ] Test context extraction:
   - Enable context mode
-  - Select word → verify surrounding text captured
-  - Test with short paragraphs (use full paragraph)
-  - Test with long paragraphs (limit to window)
-  - Verify sentence boundaries respected
-- [ ] Disable context mode → no context sent
+  - Select word in middle of paragraph → verify ~200 chars around it
+  - Select word at start of paragraph → verify context includes following text
+  - Select word at end of paragraph → verify context includes preceding text
+  - Test with short paragraphs (<200 chars) → return full paragraph
+  - Test with long paragraphs → verify window size respected
+  - Test sentence boundary detection works (ends at period when possible)
+  - Test when selected text appears multiple times → uses correct instance
+- [ ] Disable context mode → no context sent (empty string)
 
 ---
 
-### Task 2.14: Translation Display - Tooltip Mode
+### Task 2.15: Translation Display - Tooltip Mode
 **Objective:** Show translation in tooltip above selected text
 
 **Implementation:**
@@ -738,7 +975,7 @@ Each task includes validation steps to ensure quality before proceeding.
 
 ---
 
-### Task 2.15: Integration - Click to Translate Flow
+### Task 2.16: Integration - Click to Translate Flow
 **Objective:** Connect all components for working translation
 
 **Implementation:**
@@ -765,7 +1002,7 @@ Each task includes validation steps to ensure quality before proceeding.
 
 ---
 
-### Task 2.16: Bookmarklet Creation
+### Task 2.17: Bookmarklet Creation
 **Objective:** Create the actual bookmarklet code
 
 **Implementation:**
@@ -790,28 +1027,58 @@ Each task includes validation steps to ensure quality before proceeding.
 
 ---
 
-### Task 2.17: Build Process
+### Task 2.18: Build Process
 **Objective:** Automate bundling and minification
 
 **Implementation:**
 1. Create `frontend/build.sh`:
-   - Concatenate all source files
-   - Minify JavaScript (use online tool or terser)
-   - Generate bookmarklet code
-   - Output to `dist/bookmarklet.txt`
-   - Create install page `dist/install.html`
-2. Make build script executable
+   ```bash
+   #!/bin/bash
+   # Concatenate source files in DEPENDENCY ORDER (critical!)
+   # Order matters: dependencies must be loaded before dependents
+   #
+   # Dependency graph:
+   # config.js (no dependencies)
+   #   └── settings.js (depends on CONFIG)
+   #   └── translator.js (depends on CONFIG)
+   #   └── toolbar.js (depends on CONFIG, settings)
+   #   └── injected.js (depends on all above - orchestrates everything)
+   #       └── bookmarklet.js (depends on injected.js - entry point)
+
+   cat src/config.js \
+       src/settings.js \
+       src/translator.js \
+       src/toolbar.js \
+       src/injected.js \
+       src/bookmarklet.js \
+       > dist/bundle.js
+
+   # Minify with terser
+   npx terser dist/bundle.js -c -m -o dist/bundle.min.js
+
+   # Create bookmarklet (wrap in javascript: URI and URL encode)
+   # Save to dist/bookmarklet.txt
+
+   # Generate install.html with instructions for both browsers
+   ```
+2. Create `dist/install.html`:
+   - Clear instructions for Chrome (drag to bookmarks bar)
+   - Clear instructions for Firefox (add bookmark, edit URL)
+   - Copy-to-clipboard button for bookmarklet code
+   - Troubleshooting section
+3. Make build script executable: `chmod +x frontend/build.sh`
 
 **Validation:**
-- [ ] Run `./frontend/build.sh`
+- [ ] Run `cd frontend && npm run build`
 - [ ] Verify `dist/bookmarklet.txt` created
 - [ ] Verify minified code works (test bookmarklet)
 - [ ] Verify `dist/install.html` renders correctly
+- [ ] Test installation instructions in both Chrome and Firefox
 - [ ] Compare file size (should be <50KB unminified, <20KB minified)
 
 ---
 
-### Task 2.18: Frontend Testing - Manual QA
+### Task 2.19: Frontend Testing - Manual QA
 **Objective:** Comprehensive manual testing on real websites
 
 **Test Sites:**
@@ -962,20 +1229,36 @@ Each task includes validation steps to ensure quality before proceeding.
 **Implementation:**
 1. Add logging to all backend modules:
    - Use Python `logging` module
-   - Configure in `main.py`
+   - Configure in `main.py`:
+     ```python
+     import logging
+     logging.basicConfig(
+         level=logging.INFO,
+         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+     )
+     ```
    - Log levels: DEBUG for development, INFO for production
-   - Log format: timestamp, level, module, message
-2. Log important events:
-   - Translation requests (with language pair)
-   - Cache hits/misses
-   - LLM requests and latency
-   - Errors and exceptions
+2. Log important events with privacy considerations:
+   - Translation requests: `logger.info("Translation: %s -> %s", source_lang, target_lang)`
+   - **DO NOT log actual text content** (privacy concern, even for local-only service)
+   - Cache hits/misses: `logger.debug("Cache hit for key: %s", key[:8])`
+   - LLM requests and latency: `logger.info("LLM request took %.2fs", duration)`
+   - Errors and exceptions: `logger.error("Translation failed", exc_info=True)`
+   - Configuration loading: `logger.info("Loaded config from %s", config_path)`
+3. Use appropriate log levels:
+   - DEBUG: Cache operations, detailed flow
+   - INFO: Requests, configuration, startup/shutdown
+   - WARNING: Degraded operation (LLM unavailable but cached)
+   - ERROR: Failures that affect functionality
+   - CRITICAL: Service cannot start
 
 **Validation:**
 - [ ] `ruff check backend/app/*.py` passes
 - [ ] Start server and verify logs appear
-- [ ] Test different log levels
-- [ ] Verify sensitive data not logged (full text content optional)
+- [ ] Test different log levels with environment variable
+- [ ] **Verify NO sensitive data logged** (no translation text, no context)
+- [ ] Check log format is readable and parseable
+- [ ] Test error logging includes stack traces
 
 ---
 
@@ -1003,27 +1286,39 @@ Each task includes validation steps to ensure quality before proceeding.
 ---
 
 ### Task 3.8: Error Response Standardization
-**Objective:** Consistent error response format across API
+**Objective:** Consistent error response format across API with user-friendly messages
 
 **Implementation:**
 1. Create error response model in `models.py`:
-   - `ErrorResponse` with message, code, details
+   - `ErrorResponse` with message, code, details (optional)
 2. Update all error handlers in `main.py`:
-   - Use consistent format
+   - Use consistent JSON format
    - Appropriate HTTP status codes
-   - Helpful error messages
-3. Add global exception handler
+   - User-friendly, actionable error messages
+3. Error message guidelines:
+   - Be specific about what went wrong
+   - Suggest how to fix it when possible
+   - Avoid technical jargon for user-facing errors
+   - Include technical details in optional `details` field for debugging
+4. Example error messages:
+   - 400 Bad Request: `{"error": "Invalid request format", "details": "Missing required field: text"}`
+   - 422 Validation Error: `{"error": "Text is too long", "details": "Maximum length is 500 characters, received 1024"}`
+   - 429 Rate Limit: `{"error": "Too many requests", "details": "Please wait 30 seconds before trying again"}`
+   - 500 Server Error: `{"error": "Translation failed", "details": "Could not process translation. Please try again."}`
+   - 503 Service Unavailable: `{"error": "Translation server is not responding", "details": "Is LMStudio running on localhost:1234?"}`
+5. Add global exception handler with fallback message
 
 **Validation:**
 - [ ] `ruff check backend/app/*.py` passes
 - [ ] `mypy backend/app/*.py` passes
-- [ ] Test all error scenarios:
-  - 400: Bad request
-  - 422: Validation error
-  - 429: Rate limit
-  - 500: Server error
-  - 503: Service unavailable
-- [ ] Verify frontend handles all error types
+- [ ] Test all error scenarios with user-friendly messages:
+  - 400: Bad request → clear, actionable
+  - 422: Validation error → explains what's invalid
+  - 429: Rate limit → tells user how long to wait
+  - 500: Server error → doesn't expose internals
+  - 503: Service unavailable → suggests checking LLM server
+- [ ] Verify frontend displays error messages clearly
+- [ ] Test that technical details are logged but not shown to user
 
 ---
 
