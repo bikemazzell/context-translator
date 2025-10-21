@@ -101,6 +101,57 @@ async def test_translate_cleans_explanation(client):
 
 
 @pytest.mark.asyncio
+async def test_translate_removes_think_tags(client):
+    mock_response = {
+        "choices": [{"message": {"content": "<think>analyzing context...</think>house"}}]
+    }
+
+    with patch("httpx.AsyncClient.post") as mock_post:
+        mock_post.return_value = AsyncMock(
+            status_code=200,
+            json=lambda: mock_response,
+            raise_for_status=lambda: None
+        )
+
+        result = await client.translate("Haus", "German", "English")
+        assert result == "house"
+
+
+@pytest.mark.asyncio
+async def test_translate_removes_unclosed_think_tags(client):
+    mock_response = {
+        "choices": [{"message": {"content": "<think>analyzing..."}}]
+    }
+
+    with patch("httpx.AsyncClient.post") as mock_post:
+        mock_post.return_value = AsyncMock(
+            status_code=200,
+            json=lambda: mock_response,
+            raise_for_status=lambda: None
+        )
+
+        with pytest.raises(ValueError, match="Empty response"):
+            await client.translate("Haus", "German", "English")
+
+
+@pytest.mark.asyncio
+async def test_translate_removes_xml_tags(client):
+    mock_response = {
+        "choices": [{"message": {"content": "<output>house</output>"}}]
+    }
+
+    with patch("httpx.AsyncClient.post") as mock_post:
+        mock_post.return_value = AsyncMock(
+            status_code=200,
+            json=lambda: mock_response,
+            raise_for_status=lambda: None
+        )
+
+        result = await client.translate("Haus", "German", "English")
+        assert result == "house"
+
+
+@pytest.mark.asyncio
 async def test_translate_empty_response_raises_error(client):
     mock_response = {
         "choices": [{"message": {"content": ""}}]

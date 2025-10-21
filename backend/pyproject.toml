@@ -52,3 +52,6 @@ warn_no_return = true
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "-v --cov=app --cov-report=term-missing"
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]

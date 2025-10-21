@@ -1747,3 +1747,930 @@ Write tests alongside code, not after. Tests are documentation of expected behav
 
 **Code Quality:**
 Run linters and type checkers frequently. Fix issues immediately while context is fresh.
+
+---
+
+## Phase 5: Firefox Extension - Cleanup & Enhancement
+
+### Task 5.1: Code Cleanup - Remove Debug Logging
+**Objective:** Remove all debug console.log statements and cleanup code
+
+**Steps:**
+1. Remove all `console.log()` and `console.error()` debugging statements
+2. Keep only critical error logging (console.error for actual errors)
+3. Remove unused code and commented-out sections
+4. Remove test/temporary code
+
+**Files to clean:**
+- `extension/content/translator.js`
+- `extension/background/background.js`
+- `extension/popup/popup.js`
+
+**Validation:**
+- [ ] No console.log statements in production code
+- [ ] Only console.error for actual error conditions
+- [ ] Code is clean and readable
+- [ ] Extension still functions correctly after cleanup
+- [ ] Test on real website (e.g., tagesschau.de)
+
+---
+
+### Task 5.2: Settings Architecture - Dark Mode Support
+**Objective:** Add dark mode detection and styling support
+
+**Implementation:**
+1. Add `darkMode` setting (auto-detect from browser/page, with manual override)
+2. Detect system dark mode: `window.matchMedia('(prefers-color-scheme: dark)')`
+3. Update inline translation colors for dark mode:
+   - Light mode: `background: #e8f4f8`, `color: #01579b`, `border: #0288d1`
+   - Dark mode: `background: #1a2332`, `color: #64b5f6`, `border: #42a5f5`
+4. Update toolbar colors for dark mode
+5. Add setting to toolbar for manual override (Auto / Light / Dark)
+
+**Validation:**
+- [ ] Dark mode auto-detects correctly
+- [ ] Inline translations visible in both modes
+- [ ] Toolbar visible in both modes
+- [ ] Manual override works
+- [ ] Settings persist across reloads
+- [ ] Test on light and dark websites
+
+---
+
+### Task 5.3: Enhanced Toolbar - Settings UI
+**Objective:** Build comprehensive settings panel in toolbar
+
+**Current Toolbar:** Basic "Click any word to translate" message with close button
+
+**New Toolbar Design:**
+```
+┌─────────────────────────────────────┐
+│ Context Translator              [×] │
+├─────────────────────────────────────┤
+│ From: [German ▼]  To: [English ▼]  │
+│ □ Context Mode  □ Dark Mode         │
+│ Display: ○ Inline  ○ Tooltip        │
+│ [Clear Translations]                │
+└─────────────────────────────────────┘
+```
+
+**Implementation:**
+1. Expand toolbar HTML structure in `translator.js`:
+   - Language dropdowns (source/target)
+   - Context mode checkbox
+   - Dark mode checkbox (Auto/Light/Dark selector)
+   - Display mode radio buttons (Inline/Tooltip)
+   - Clear translations button
+2. Wire up event handlers:
+   - Language changes → update settings → save
+   - Context toggle → update settings
+   - Dark mode → update settings → refresh styles
+   - Display mode → update settings
+   - Clear button → remove all inline translations
+3. Load settings on initialization
+4. Populate language dropdowns from backend
+5. Apply settings immediately when changed
+
+**Validation:**
+- [ ] All controls render correctly
+- [ ] Language dropdowns populated from backend
+- [ ] All settings persist across reloads
+- [ ] Changes apply immediately
+- [ ] Clear button removes all translations
+- [ ] Toolbar styling matches dark/light mode
+- [ ] Test on multiple pages
+
+---
+
+### Task 5.4: Settings Persistence & Loading
+**Objective:** Properly persist and load all settings
+
+**Implementation:**
+1. Update settings object in `translator.js`:
+   ```javascript
+   let settings = {
+     sourceLang: 'German',
+     targetLang: 'English',
+     contextMode: false,
+     contextWindowChars: 200,
+     displayMode: 'inline', // 'inline' or 'tooltip'
+     darkMode: 'auto', // 'auto', 'light', or 'dark'
+     enabled: false
+   };
+   ```
+2. Load settings from browser.storage.local on init
+3. Save settings on every change
+4. Don't force override settings on every load (bug fix)
+5. Merge stored settings with defaults (preserve new defaults)
+
+**Validation:**
+- [ ] Settings load from storage on page load
+- [ ] Settings persist across browser restart
+- [ ] New settings get default values
+- [ ] Old settings are preserved
+- [ ] Test: Change setting → reload page → verify persisted
+
+---
+
+### Task 5.5: Display Mode - Tooltip Implementation
+**Objective:** Implement tooltip display mode properly with !important styles
+
+**Current State:** Tooltip code exists but isn't used (inline is default)
+
+**Implementation:**
+1. Fix `showTooltipTranslation()` function:
+   - Use `position: fixed !important`
+   - Add dark mode color support
+   - Ensure z-index is highest
+   - Add !important to all critical styles
+2. Update `showTranslation()` to respect `settings.displayMode`
+3. Auto-dismiss on scroll (reposition if needed)
+4. Make tooltip clickable to dismiss
+
+**Validation:**
+- [ ] Switch to tooltip mode in settings
+- [ ] Tooltips appear above clicked word
+- [ ] Tooltips visible in light and dark modes
+- [ ] Tooltips don't interfere with page
+- [ ] Auto-dismiss works correctly
+- [ ] Test on scrollable pages
+
+---
+
+### Task 5.6: Context Mode - Implementation
+**Objective:** Implement context extraction and display
+
+**Implementation:**
+1. Enable context extraction when `settings.contextMode` is true
+2. Extract surrounding text (already implemented in `extractContext()`)
+3. Visual indicator when context mode is active:
+   - Add small badge to inline translation: "📄" or "context"
+   - Tooltip shows context was used
+4. Clear context when requested (cache is still per-word, context is per-request)
+
+**Validation:**
+- [ ] Enable context mode in toolbar
+- [ ] Translations include context
+- [ ] Visual indicator shows context was used
+- [ ] Compare translations with/without context
+- [ ] Test on ambiguous words (e.g., "Bank" in different contexts)
+
+---
+
+### Task 5.7: Clear Translations Feature
+**Objective:** Implement clear all translations button
+
+**Implementation:**
+1. Add "Clear Translations" button to toolbar
+2. Implement `clearAllTranslations()` function:
+   - Remove all inline translation elements from DOM
+   - Clear `inlineTranslations` array
+   - Remove any active tooltips
+3. Add confirmation if many translations exist (>5)
+4. Visual feedback (toast: "Translations cleared")
+
+**Validation:**
+- [ ] Button appears in toolbar
+- [ ] Click clears all inline translations
+- [ ] Confirmation appears for many translations
+- [ ] Toast confirms action
+- [ ] Page returns to clean state
+- [ ] Test with 10+ translations
+
+---
+
+### Task 5.8: Error Handling - User-Friendly Messages
+**Objective:** Improve error messages and handling
+
+**Current Issues:**
+- Backend errors show technical details
+- Network failures unclear
+- No retry mechanism
+
+**Implementation:**
+1. Update error messages in `translate()`:
+   - "Translation service unavailable" → "Cannot connect. Is the backend running?"
+   - "Request failed" → "Translation failed. Please try again."
+   - Timeout → "Request timed out. Try a shorter text."
+2. Remove error toasts (they're distracting)
+3. Show errors only for critical failures
+4. Cache errors temporarily to avoid repeated failures
+
+**Validation:**
+- [ ] Stop backend → clear error message
+- [ ] Network timeout → appropriate message
+- [ ] Invalid response → helpful message
+- [ ] Errors don't spam user
+- [ ] Test all error conditions
+
+---
+
+### Task 5.9: Code Refactoring - Modular Structure
+**Objective:** Organize code into logical modules
+
+**Current Structure:** Everything in one large `translator.js` file
+
+**Proposed Structure:**
+```
+extension/content/
+├── translator.js (main entry point, orchestration)
+├── settings.js (settings management)
+├── toolbar.js (toolbar UI and events)
+├── display.js (inline/tooltip display logic)
+├── api.js (backend communication)
+└── utils.js (helpers, context extraction)
+```
+
+**Alternative (simpler):** Keep single file but organize with clear sections:
+```javascript
+// ============================================
+// CONFIGURATION & STATE
+// ============================================
+
+// ============================================
+// SETTINGS MANAGEMENT
+// ============================================
+
+// ============================================
+// TOOLBAR UI
+// ============================================
+
+// ============================================
+// TRANSLATION DISPLAY
+// ============================================
+
+// ============================================
+// API COMMUNICATION
+// ============================================
+
+// ============================================
+// EVENT HANDLERS
+// ============================================
+
+// ============================================
+// INITIALIZATION
+// ============================================
+```
+
+**Decision:** Use single-file with clear sections (simpler for extension, no module loading)
+
+**Validation:**
+- [ ] Code organized into logical sections
+- [ ] Each section has clear purpose
+- [ ] Functions grouped by responsibility
+- [ ] Comments mark section boundaries
+- [ ] Extension still works after refactoring
+
+---
+
+### Task 5.10: Performance Optimization
+**Objective:** Optimize for speed and reduce overhead
+
+**Optimizations:**
+1. Debounce click handler (prevent rapid clicks)
+2. Cache language list (don't fetch on every page load)
+3. Lazy-create toolbar (only when activated)
+4. Remove unused code paths
+5. Minimize DOM operations
+6. Use event delegation where possible
+
+**Validation:**
+- [ ] Click response <100ms
+- [ ] No UI lag when clicking rapidly
+- [ ] Memory usage stable (test with 50+ translations)
+- [ ] No memory leaks (check DevTools Memory profiler)
+- [ ] Extension doesn't slow down page load
+
+---
+
+### Task 5.11: Visual Polish - Animations & Transitions
+**Objective:** Add subtle animations for better UX
+
+**Enhancements:**
+1. Fade-in animation for inline translations (already exists)
+2. Smooth toolbar expand/collapse (if we add collapse feature)
+3. Hover effects on interactive elements
+4. Loading indicator for slow translations
+5. Success feedback for settings changes
+
+**Validation:**
+- [ ] Animations smooth (60fps)
+- [ ] No animation jank
+- [ ] Animations feel professional
+- [ ] Reduced motion preference respected
+- [ ] Test on slower devices
+
+---
+
+### Task 5.12: Testing - Manual QA Checklist
+**Objective:** Comprehensive testing of final extension
+
+**Test Matrix:**
+
+**Browser:** Firefox
+**Sites:** Wikipedia DE, tagesschau.de, GitHub, Reddit
+
+**Test Cases:**
+- [ ] Install extension
+- [ ] Open popup, click "Toggle Translator"
+- [ ] Toolbar appears
+- [ ] Change source language to German
+- [ ] Change target language to English
+- [ ] Click word → inline translation appears
+- [ ] Enable context mode → translation changes
+- [ ] Switch to tooltip mode → tooltips appear
+- [ ] Enable dark mode → colors invert
+- [ ] Clear translations → all removed
+- [ ] Disable translator → click handler removed
+- [ ] Re-enable → works again
+- [ ] Reload page → settings persist
+- [ ] Test with 20+ translations
+- [ ] Test on dark mode website
+- [ ] Test on light mode website
+- [ ] Check console for errors
+- [ ] Check memory usage
+
+---
+
+### Task 5.13: Documentation - Extension Usage
+**Objective:** Document the Firefox extension
+
+**Create:** `extension/README.md`
+
+**Contents:**
+1. Installation instructions
+2. Usage guide
+3. Settings explanation
+4. Troubleshooting
+5. Development guide
+
+**Validation:**
+- [ ] Follow installation steps on clean Firefox
+- [ ] Verify all instructions accurate
+- [ ] Screenshots/GIFs included
+- [ ] Troubleshooting covers common issues
+
+---
+
+### Task 5.14: Final Cleanup - Remove Bookmarklet Code
+**Objective:** Clean up unused bookmarklet code
+
+**Decision Point:** Keep or remove frontend/ directory?
+- **Keep:** Bookmarklet still useful for other browsers
+- **Remove:** Extension is better, simpler to maintain
+
+**Recommendation:** Keep but mark as deprecated/alternative
+
+**Steps:**
+1. Add note to `frontend/README.md` recommending extension
+2. Keep bookmarklet for Chrome/other browsers
+3. Update main README.md to mention both approaches
+
+**Validation:**
+- [ ] Documentation updated
+- [ ] Both approaches work
+- [ ] Clear guidance on which to use
+
+---
+
+## Quality Checklist for Phase 5
+
+**Before Completion:**
+- [ ] No console.log in production code
+- [ ] All settings work and persist
+- [ ] Dark mode works correctly
+- [ ] Both display modes work
+- [ ] Context mode works
+- [ ] Error handling is user-friendly
+- [ ] Code is well-organized
+- [ ] Performance is good
+- [ ] Manual QA passed
+- [ ] Documentation complete
+
+**Success Criteria:**
+- Extension works on 95% of websites
+- Settings persist 100% of time
+- UI responds <100ms
+- No console errors
+- Dark mode auto-detects correctly
+- Translations visible in all modes
+
+---
+
+## Phase 6: Extension Packaging & Distribution
+
+### Task 6.1: Research Extension Packaging Requirements
+**Objective:** Understand Firefox extension packaging for local installation
+
+**Key Findings from Research:**
+
+1. **File Format:**
+   - Firefox extensions are packaged as `.xpi` files (ZIP files with .xpi extension)
+   - Must be a ZIP of the extension's files themselves, not of the directory containing them
+   - Structure: manifest.json at root, all other files in proper relative paths
+
+2. **Local Installation Options:**
+   - **Temporary Installation:** `about:debugging` → Load Temporary Add-on (current method)
+     - Issue: Extensions unload when Firefox closes
+   - **Permanent Local Installation (Unsigned):**
+     - Set `xpinstall.signatures.required` to `false` in `about:config`
+     - Use Firefox Nightly or Developer Edition
+     - Package as .xpi and install via "Install Add-on From File" in `about:addons`
+
+3. **Requirements for Local Installation:**
+   - Must have add-on ID in `browser_specific_settings` (✓ already have: `context-translator@localhost`)
+   - No signing required if using Developer/Nightly edition with config changes
+   - Persistent installation requires proper add-on ID for data persistence
+
+4. **Files to Include:**
+   - manifest.json (required)
+   - All JavaScript, CSS, HTML files
+   - Icons
+   - Native messaging host manifest and script
+   - Exclude: .git, development files, node_modules, tests, etc.
+
+5. **Packaging Tools:**
+   - `web-ext build` (recommended by Mozilla, auto-excludes unwanted files)
+   - Manual ZIP creation (simpler, more control)
+
+**Decision:** Use simple ZIP-based packaging script for maximum control and simplicity
+
+**Validation:**
+- [x] Researched Firefox extension packaging
+- [x] Understood unsigned extension installation
+- [x] Identified required files
+- [x] Chosen packaging approach
+
+---
+
+### Task 6.2: Extension Packaging Plan
+**Objective:** Create detailed plan for packaging the extension
+
+**Packaging Approach:**
+
+1. **Create Package Script (`package-extension.sh`):**
+   - Validates manifest.json exists and is valid
+   - Creates clean build directory
+   - Copies only necessary extension files
+   - Creates .xpi file (ZIP archive)
+   - Validates package structure
+   - Provides installation instructions
+
+2. **Files to Include in Package:**
+   ```
+   context-translator.xpi
+   ├── manifest.json
+   ├── icons/
+   │   ├── icon-48.png
+   │   └── icon-96.png
+   ├── background/
+   │   └── background.js
+   ├── content/
+   │   ├── translator.js
+   │   └── translator.css
+   ├── popup/
+   │   ├── popup.html
+   │   └── popup.js
+   └── native-host/
+       ├── context_translator_host.py
+       └── context_translator_host.json
+   ```
+
+3. **Files to Exclude:**
+   - .git directory
+   - Development files
+   - Documentation (README, etc.)
+   - Backend code (separate installation)
+   - Frontend/bookmarklet code
+   - Tests
+   - Temporary files
+
+4. **Installation Process:**
+   - User runs packaging script
+   - Gets .xpi file and installation instructions
+   - Follows browser-specific steps
+
+5. **Installation Instructions (Per Browser):**
+
+   **Firefox Developer/Nightly Edition:**
+   - Set `xpinstall.signatures.required = false` in `about:config`
+   - Open `about:addons`
+   - Click gear icon → "Install Add-on From File"
+   - Select `context-translator.xpi`
+   - Extension persists across restarts
+
+   **Firefox Release Edition:**
+   - Cannot install unsigned extensions permanently
+   - Must use temporary installation via `about:debugging`
+   - OR submit to Mozilla Add-ons (requires review)
+
+6. **Native Messaging Host Installation:**
+   - Packaging script also handles native host setup
+   - Copies manifest to `~/.mozilla/native-messaging-hosts/`
+   - Ensures Python script is executable
+   - Validates paths in manifest
+
+**Script Features:**
+- Error checking at each step
+- Validation of manifest.json
+- Automatic version detection
+- Clean output with progress indicators
+- Final instructions for user
+- Idempotent (can run multiple times)
+
+**Validation:**
+- [ ] Plan documented
+- [ ] All required files identified
+- [ ] Exclusion list complete
+- [ ] Installation steps clear
+- [ ] Script features defined
+
+---
+
+### Task 6.3: Create Packaging Script
+**Objective:** Implement automated packaging script
+
+**Implementation:**
+
+1. Create `package-extension.sh` in project root:
+   ```bash
+   #!/bin/bash
+   # Context Translator - Extension Packaging Script
+   # Creates installable .xpi package for Firefox
+
+   set -e  # Exit on error
+
+   # Colors for output
+   GREEN='\033[0;32m'
+   BLUE='\033[0;34m'
+   RED='\033[0;31m'
+   NC='\033[0m' # No Color
+
+   # Configuration
+   EXTENSION_DIR="extension"
+   BUILD_DIR="dist"
+   PACKAGE_NAME="context-translator.xpi"
+   NATIVE_HOST_DIR="$HOME/.mozilla/native-messaging-hosts"
+
+   # Functions
+   print_step() {
+       echo -e "${BLUE}==>${NC} $1"
+   }
+
+   print_success() {
+       echo -e "${GREEN}✓${NC} $1"
+   }
+
+   print_error() {
+       echo -e "${RED}✗${NC} $1"
+   }
+
+   # Main packaging logic
+   # 1. Validate manifest.json
+   # 2. Create build directory
+   # 3. Copy extension files
+   # 4. Create ZIP archive
+   # 5. Rename to .xpi
+   # 6. Setup native messaging host
+   # 7. Print installation instructions
+   ```
+
+2. Script validates:
+   - manifest.json exists and is valid JSON
+   - Required files present (background.js, content scripts, etc.)
+   - Icons exist
+   - Python script exists and is executable
+
+3. Script creates:
+   - Clean build directory
+   - Proper file structure
+   - .xpi package
+   - Native messaging host setup
+
+4. Script outputs:
+   - Progress messages
+   - Success confirmation
+   - Installation instructions
+   - Troubleshooting tips
+
+**Validation:**
+- [ ] Script created
+- [ ] Executable permissions set: `chmod +x package-extension.sh`
+- [ ] Script runs without errors
+- [ ] Creates valid .xpi file
+- [ ] Output is clear and helpful
+
+---
+
+### Task 6.4: Test Package Creation
+**Objective:** Verify packaging script works correctly
+
+**Test Steps:**
+
+1. **Clean Test:**
+   - Remove any existing dist/ directory
+   - Run packaging script: `./package-extension.sh`
+   - Verify .xpi created
+   - Check file size (should be reasonable, <1MB)
+
+2. **Structure Validation:**
+   - Unzip .xpi to temporary directory
+   - Verify all required files present
+   - Check manifest.json at root level
+   - Verify no excluded files (e.g., .git)
+
+3. **Native Host Setup:**
+   - Check if manifest copied to `~/.mozilla/native-messaging-hosts/`
+   - Verify Python script path is correct
+   - Confirm script is executable
+
+4. **Package Integrity:**
+   - Verify .xpi is valid ZIP: `unzip -t dist/context-translator.xpi`
+   - Check for any corruption
+   - Verify file permissions
+
+**Validation:**
+- [ ] .xpi file created successfully
+- [ ] File structure correct
+- [ ] Native host manifest installed
+- [ ] Package is valid ZIP
+- [ ] No errors during creation
+
+---
+
+### Task 6.5: Test Installation - Firefox Developer Edition
+**Objective:** Test actual installation in Firefox
+
+**Prerequisites:**
+- Firefox Developer Edition or Nightly installed
+- Backend server configured and tested
+
+**Test Steps:**
+
+1. **Configure Firefox:**
+   - Open `about:config`
+   - Search for `xpinstall.signatures.required`
+   - Set to `false`
+   - Restart Firefox
+
+2. **Install Extension:**
+   - Open `about:addons`
+   - Click gear icon (⚙️)
+   - Select "Install Add-on From File..."
+   - Navigate to `dist/context-translator.xpi`
+   - Click "Open"
+   - Accept installation prompt
+
+3. **Verify Installation:**
+   - Extension appears in add-ons list
+   - Icon appears in toolbar
+   - Click icon → popup appears
+   - Click "Toggle Translator" → toolbar appears on page
+
+4. **Test Functionality:**
+   - Navigate to test page (e.g., tagesschau.de)
+   - Toggle translator on
+   - Click word → translation appears
+   - Verify settings persist after reload
+   - Test all features from manual QA checklist
+
+5. **Test Persistence:**
+   - Restart Firefox
+   - Verify extension still installed
+   - Verify settings preserved
+   - Test functionality again
+
+**Validation:**
+- [ ] Extension installs successfully
+- [ ] All features work
+- [ ] Settings persist across browser restart
+- [ ] Native messaging works
+- [ ] No console errors
+
+---
+
+### Task 6.6: Create Installation Guide
+**Objective:** Write comprehensive installation instructions
+
+**Create:** `INSTALLATION.md` in project root
+
+**Contents:**
+
+1. **Prerequisites:**
+   - Firefox Developer Edition or Nightly (for unsigned extension)
+   - Python 3.12+ with conda environment
+   - LLM server (LMStudio, llama.cpp, etc.)
+
+2. **Backend Setup:**
+   - Install Python dependencies
+   - Configure config.yaml
+   - Start backend server
+   - Verify health endpoint
+
+3. **Extension Installation:**
+   - Run packaging script
+   - Configure Firefox
+   - Install extension
+   - Verify installation
+
+4. **Native Messaging Setup:**
+   - Automatic via packaging script
+   - Manual steps if needed
+   - Troubleshooting
+
+5. **First Use:**
+   - Configure languages
+   - Test translation
+   - Adjust settings
+
+6. **Troubleshooting:**
+   - Extension won't install → check Firefox version, config
+   - Native messaging fails → check paths, permissions
+   - Translations don't work → check backend, logs
+   - Settings don't persist → check add-on ID
+
+7. **Updating:**
+   - How to update extension
+   - How to update backend
+   - Preserving settings
+
+**Validation:**
+- [ ] Installation guide complete
+- [ ] All steps accurate
+- [ ] Screenshots included
+- [ ] Troubleshooting comprehensive
+- [ ] Follow guide on fresh system
+
+---
+
+### Task 6.7: Update Main README
+**Objective:** Update project README with extension information
+
+**Updates to README.md:**
+
+1. **Project Description:**
+   - Mention Firefox extension
+   - Note bookmarklet as alternative
+   - Highlight native messaging approach
+
+2. **Features:**
+   - Context-aware translation
+   - Inline and tooltip display modes
+   - Dark mode support
+   - Settings persistence
+   - Keyboard shortcuts
+
+3. **Installation:**
+   - Link to INSTALLATION.md
+   - Quick start section
+   - System requirements
+
+4. **Architecture:**
+   - Brief overview
+   - Firefox extension + Native messaging + Python backend + LLM
+   - Diagram (optional)
+
+5. **Development:**
+   - How to contribute
+   - How to build from source
+   - How to run tests
+
+6. **License:**
+   - Add license information
+
+**Validation:**
+- [ ] README updated
+- [ ] All sections accurate
+- [ ] Links work
+- [ ] Clear and professional
+
+---
+
+### Task 6.8: Create Release Checklist
+**Objective:** Document release process
+
+**Create:** `RELEASE.md` with checklist:
+
+1. **Pre-Release:**
+   - [ ] All tests pass
+   - [ ] Code cleanup complete
+   - [ ] Documentation up to date
+   - [ ] Manual QA passed
+   - [ ] Version number updated
+
+2. **Package:**
+   - [ ] Run packaging script
+   - [ ] Verify .xpi created
+   - [ ] Test installation
+   - [ ] Verify all features work
+
+3. **Documentation:**
+   - [ ] Installation guide tested
+   - [ ] README accurate
+   - [ ] Troubleshooting complete
+   - [ ] Screenshots current
+
+4. **Release:**
+   - [ ] Tag version in git
+   - [ ] Create release notes
+   - [ ] Archive .xpi file
+   - [ ] Update CHANGELOG
+
+5. **Post-Release:**
+   - [ ] Monitor for issues
+   - [ ] Respond to feedback
+   - [ ] Plan next iteration
+
+**Validation:**
+- [ ] Release checklist complete
+- [ ] Process documented
+- [ ] All steps clear
+
+---
+
+### Task 6.9: Final Testing - Complete Workflow
+**Objective:** End-to-end test of complete installation and usage
+
+**Test Scenario: New User Installation**
+
+1. **Fresh System Setup:**
+   - Clean Firefox Developer Edition
+   - No existing extension or backend
+   - Follow INSTALLATION.md exactly
+
+2. **Backend Setup:**
+   - Clone repository
+   - Install dependencies
+   - Configure backend
+   - Start server
+   - Test health endpoint
+
+3. **Extension Installation:**
+   - Run packaging script
+   - Configure Firefox
+   - Install extension
+   - Verify installation
+
+4. **First Translation:**
+   - Navigate to test page
+   - Toggle translator
+   - Configure languages
+   - Translate word
+   - Verify result
+
+5. **Feature Testing:**
+   - Test all display modes
+   - Test context mode
+   - Test dark mode
+   - Test settings persistence
+   - Test keyboard shortcuts
+   - Test error handling
+
+6. **Long-Term Use:**
+   - Restart browser
+   - Test on multiple sites
+   - Test with 50+ translations
+   - Monitor performance
+   - Check for issues
+
+**Validation:**
+- [ ] Complete workflow successful
+- [ ] Installation takes <15 minutes
+- [ ] All features work
+- [ ] No errors encountered
+- [ ] Documentation accurate
+
+---
+
+## Phase 6 Completion Checklist
+
+**Packaging:**
+- [ ] Packaging script created and tested
+- [ ] .xpi file generates correctly
+- [ ] Native messaging host setup works
+- [ ] Package structure validated
+
+**Installation:**
+- [ ] Installation guide complete
+- [ ] Tested on Firefox Developer Edition
+- [ ] Tested on Firefox Nightly
+- [ ] Troubleshooting comprehensive
+
+**Documentation:**
+- [ ] INSTALLATION.md complete
+- [ ] README.md updated
+- [ ] RELEASE.md created
+- [ ] All documentation accurate
+
+**Testing:**
+- [ ] Package creation tested
+- [ ] Installation tested
+- [ ] Full workflow tested
+- [ ] No critical issues
+
+**Success Criteria:**
+- Extension packages successfully
+- Installs in <5 minutes
+- All features work after installation
+- Settings persist across restarts
+- Documentation is complete and accurate

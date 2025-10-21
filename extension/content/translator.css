@@ -1,0 +1,14 @@
+/* Context Translator Extension Styles */
+
+/* Prevent conflicts with page styles */
+#ct-toolbar,
+#ct-translation-popup,
+.ct-inline-translation {
+  all: initial;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
+/* Override any page styles that might interfere */
+#ct-toolbar * {
+  box-sizing: border-box;
+}

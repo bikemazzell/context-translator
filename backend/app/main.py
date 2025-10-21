@@ -61,8 +61,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,
 )
 
 
@@ -162,6 +164,24 @@ async def translate(request: TranslationRequest) -> TranslationResponse:
 
 
 if __name__ == "__main__":
+    import os
     import uvicorn
 
-    uvicorn.run(app, host="localhost", port=8080)
+    cert_file = "certs/cert.pem"
+    key_file = "certs/key.pem"
+
+    use_https = os.path.exists(cert_file) and os.path.exists(key_file)
+
+    if use_https:
+        logger.info("Starting server with HTTPS (certificates found)")
+        uvicorn.run(
+            app,
+            host="localhost",
+            port=8080,
+            ssl_keyfile=key_file,
+            ssl_certfile=cert_file,
+        )
+    else:
+        logger.info("Starting server with HTTP (no certificates found)")
+        logger.info("To enable HTTPS, run: ./generate-cert.sh")
+        uvicorn.run(app, host="localhost", port=8080)

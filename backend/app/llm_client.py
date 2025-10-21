@@ -86,9 +86,34 @@ class OpenAICompatibleClient(LLMClient):
         if len(cleaned) > len(original_text) * 3:
             logger.warning(f"Response unusually long: {len(cleaned)} vs {len(original_text)}")
 
+        cleaned = re.sub(r'<think>.*?</think>', '', cleaned, flags=re.DOTALL | re.IGNORECASE)
+        cleaned = re.sub(r'<think>.*', '', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'</?[a-zA-Z][^>]*>', '', cleaned)
+        cleaned = cleaned.strip()
+
+        if not cleaned:
+            raise ValueError("Empty response after removing thinking tags")
+
+        verbose_prefixes = [
+            r'^(?:okay|alright|sure|well|let me|i will|i\'ll)[,\s]',
+        ]
+
+        for prefix_pattern in verbose_prefixes:
+            if re.search(prefix_pattern, cleaned, re.IGNORECASE):
+                logger.info("Detected verbose prefix, extracting translation from quotes")
+                match = re.search(r'["\']([^"\']+)["\']', cleaned)
+                if match:
+                    potential = match.group(1).strip()
+                    if potential and len(potential) <= len(original_text) * 2:
+                        cleaned = potential
+                        logger.info(f"Extracted from quotes: {cleaned}")
+                        break
+
         original_has_quotes = original_text.startswith('"') and original_text.endswith('"')
         if not original_has_quotes:
-            if (cleaned.startswith('"') and cleaned.endswith('"')) or (cleaned.startswith("'") and cleaned.endswith("'")):
+            if cleaned.startswith('"') and cleaned.endswith('"'):
+                cleaned = cleaned[1:-1].strip()
+            elif cleaned.startswith("'") and cleaned.endswith("'"):
                 cleaned = cleaned[1:-1].strip()
 
         explanation_patterns = [

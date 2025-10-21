@@ -44,6 +44,6 @@ def test_build_messages_with_context():
 
 
 def test_system_prompt_contains_rules():
-    assert "CRITICAL RULES:" in SYSTEM_PROMPT
+    assert "CRITICAL:" in SYSTEM_PROMPT
     assert "Output ONLY the translation" in SYSTEM_PROMPT
     assert "Examples:" in SYSTEM_PROMPT

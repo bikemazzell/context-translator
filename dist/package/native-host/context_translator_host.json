@@ -1,0 +1,9 @@
+{
+  "name": "context_translator_host",
+  "description": "Context Translator native messaging host",
+  "path": "/home/v/Documents/Dev/context-translator/extension/native-host/context_translator_host.py",
+  "type": "stdio",
+  "allowed_extensions": [
+    "context-translator@bike-mazzell"
+  ]
+}

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Context Translator - Test Page</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      line-height: 1.8;
+    }
+    h1 {
+      color: #333;
+    }
+    .test-section {
+      margin: 30px 0;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #f8f9fa;
+    }
+    .german {
+      background: #fff3cd;
+    }
+    .french {
+      background: #d1ecf1;
+    }
+    .spanish {
+      background: #f8d7da;
+    }
+    code {
+      background: #e9ecef;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Context Translator Test Page</h1>
+
+  <div class="test-section">
+    <h2>📖 Instructions</h2>
+    <ol>
+      <li>Start the backend: <code>cd backend && uvicorn app.main:app --host localhost --port 8080</code></li>
+      <li>Build the frontend: <code>cd frontend && npm run build</code></li>
+      <li>Open the bookmarklet page: <code>open dist/bookmarklet.html</code></li>
+      <li>Drag the bookmarklet to your bookmarks bar</li>
+      <li>Return to this page and click the bookmarklet</li>
+      <li>Click on any word below to translate it</li>
+    </ol>
+  </div>
+
+  <div class="test-section german">
+    <h2>🇩🇪 German Test Text</h2>
+    <p>
+      Das <strong>Haus</strong> ist groß und schön. Die <strong>Bank</strong> steht im Garten.
+      Der <strong>Schlüssel</strong> passt ins <strong>Schloss</strong>.
+    </p>
+    <p>
+      Ich sitze auf der <strong>Bank</strong> und lese ein <strong>Buch</strong>.
+      Das <strong>Schloss</strong> hat viele <strong>Türme</strong>.
+    </p>
+  </div>
+
+  <div class="test-section french">
+    <h2>🇫🇷 French Test Text</h2>
+    <p>
+      La <strong>maison</strong> est belle. Le <strong>chat</strong> est sur le <strong>toit</strong>.
+      J'aime les <strong>croissants</strong> le matin.
+    </p>
+  </div>
+
+  <div class="test-section spanish">
+    <h2>🇪🇸 Spanish Test Text</h2>
+    <p>
+      El <strong>perro</strong> corre en el <strong>parque</strong>.
+      La <strong>casa</strong> tiene un <strong>jardín</strong> grande.
+    </p>
+  </div>
+
+  <div class="test-section">
+    <h2>🧪 Context Testing</h2>
+    <p>
+      <strong>Test case 1 (ambiguous word - "Bank"):</strong><br>
+      German sentence: "Ich sitze auf der Bank" (I sit on the bench)<br>
+      Expected translation: "bench" (not "bank" as in financial institution)
+    </p>
+    <p>
+      <strong>Test case 2 (ambiguous word - "Schloss"):</strong><br>
+      German sentence 1: "Das Schloss ist groß" (The castle is big)<br>
+      Expected translation: "castle"<br>
+      <br>
+      German sentence 2: "Der Schlüssel passt ins Schloss" (The key fits in the lock)<br>
+      Expected translation: "lock"
+    </p>
+  </div>
+
+  <div class="test-section">
+    <h2>✅ Testing Checklist</h2>
+    <ul>
+      <li>☐ Toolbar appears when bookmarklet is clicked</li>
+      <li>☐ Can select source and target languages</li>
+      <li>☐ Can toggle context mode</li>
+      <li>☐ Clicking a word shows translation popup</li>
+      <li>☐ Context mode provides better disambiguation</li>
+      <li>☐ Cache indicator shows for repeated translations</li>
+      <li>☐ Toast notifications appear</li>
+      <li>☐ Toolbar can be minimized</li>
+      <li>☐ Toolbar can be closed</li>
+      <li>☐ Settings persist across page reloads</li>
+      <li>☐ Translation popup dismisses on outside click</li>
+      <li>☐ Translation popup dismisses on scroll</li>
+    </ul>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
