@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from abc import ABC, abstractmethod
@@ -48,8 +49,7 @@ class OpenAICompatibleClient(LLMClient):
                     data = response.json()
                     translation_text = data["choices"][0]["message"]["content"]
 
-                    cleaned = self._clean_response(translation_text, text)
-                    return cleaned
+                    return self._clean_response(translation_text, text)
 
             except httpx.TimeoutException as e:
                 last_error = e
@@ -59,21 +59,22 @@ class OpenAICompatibleClient(LLMClient):
             except httpx.HTTPStatusError as e:
                 last_error = e
                 logger.error(f"HTTP error {e.response.status_code}: {e.response.text}")
-                raise ValueError(f"LLM server error: {e.response.status_code}") from e
+                msg = f"LLM server error: {e.response.status_code}"
+                raise ValueError(msg) from e
             except (KeyError, IndexError) as e:
                 last_error = e
                 logger.error(f"Invalid response format: {e}")
-                raise ValueError("Invalid response from LLM") from e
+                msg = "Invalid response from LLM"
+                raise ValueError(msg) from e
             except Exception as e:
                 last_error = e
                 logger.error(f"Unexpected error: {e}")
                 raise
 
-        raise ValueError(f"Translation failed after {max_retries} attempts") from last_error
+        msg = f"Translation failed after {max_retries} attempts"
+        raise ValueError(msg) from last_error
 
     async def _exponential_backoff(self, attempt: int) -> None:
-        import asyncio
-
         wait_time = min(2**attempt, 8)
         await asyncio.sleep(wait_time)
 
@@ -81,7 +82,8 @@ class OpenAICompatibleClient(LLMClient):
         cleaned = response_text.strip()
 
         if not cleaned:
-            raise ValueError("Empty response from LLM")
+            msg = "Empty response from LLM"
+            raise ValueError(msg)
 
         if len(cleaned) > len(original_text) * 3:
             logger.warning(f"Response unusually long: {len(cleaned)} vs {len(original_text)}")
@@ -92,7 +94,8 @@ class OpenAICompatibleClient(LLMClient):
         cleaned = cleaned.strip()
 
         if not cleaned:
-            raise ValueError("Empty response after removing thinking tags")
+            msg = "Empty response after removing thinking tags"
+            raise ValueError(msg)
 
         verbose_prefixes = [
             r'^(?:okay|alright|sure|well|let me|i will|i\'ll)[,\s]',
@@ -110,11 +113,12 @@ class OpenAICompatibleClient(LLMClient):
                         break
 
         original_has_quotes = original_text.startswith('"') and original_text.endswith('"')
-        if not original_has_quotes:
-            if cleaned.startswith('"') and cleaned.endswith('"'):
-                cleaned = cleaned[1:-1].strip()
-            elif cleaned.startswith("'") and cleaned.endswith("'"):
-                cleaned = cleaned[1:-1].strip()
+        has_added_quotes = (
+            (cleaned.startswith('"') and cleaned.endswith('"'))
+            or (cleaned.startswith("'") and cleaned.endswith("'"))
+        )
+        if not original_has_quotes and has_added_quotes:
+            cleaned = cleaned[1:-1].strip()
 
         explanation_patterns = [
             r"(?i)the translation is",
@@ -140,8 +144,8 @@ class OpenAICompatibleClient(LLMClient):
 
         lines = cleaned.split("\n")
         if len(lines) > 1:
-            for line in lines:
-                line = line.strip()
+            for raw_line in lines:
+                line = raw_line.strip()
                 if line and not any(re.search(p, line) for p in explanation_patterns):
                     cleaned = line
                     break
@@ -149,6 +153,7 @@ class OpenAICompatibleClient(LLMClient):
         cleaned = cleaned.strip()
 
         if not cleaned:
-            raise ValueError("Response cleaning resulted in empty translation")
+            msg = "Response cleaning resulted in empty translation"
+            raise ValueError(msg)
 
         return cleaned

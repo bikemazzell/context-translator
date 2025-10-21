@@ -4,6 +4,9 @@ from typing import Any
 
 import yaml
 
+# Constants
+MAX_PORT_NUMBER = 65535
+
 
 @dataclass
 class ServerConfig:
@@ -56,24 +59,30 @@ class Config:
     translation: TranslationConfig
 
     def validate(self) -> None:
-        if self.server.port < 1 or self.server.port > 65535:
-            raise ValueError(f"Invalid port number: {self.server.port}")
+        if self.server.port < 1 or self.server.port > MAX_PORT_NUMBER:
+            msg = f"Invalid port number: {self.server.port}"
+            raise ValueError(msg)
 
         if self.llm.primary.timeout < 1:
-            raise ValueError(f"Invalid timeout: {self.llm.primary.timeout}")
+            msg = f"Invalid timeout: {self.llm.primary.timeout}"
+            raise ValueError(msg)
 
         if self.cache.ttl_days < 1:
-            raise ValueError(f"Invalid TTL: {self.cache.ttl_days}")
+            msg = f"Invalid TTL: {self.cache.ttl_days}"
+            raise ValueError(msg)
 
         if self.cache.max_size_mb < 1:
-            raise ValueError(f"Invalid cache size: {self.cache.max_size_mb}")
+            msg = f"Invalid cache size: {self.cache.max_size_mb}"
+            raise ValueError(msg)
 
         if self.translation.max_text_length < 1:
-            raise ValueError(f"Invalid max text length: {self.translation.max_text_length}")
+            msg = f"Invalid max text length: {self.translation.max_text_length}"
+            raise ValueError(msg)
 
         if self.translation.context_window_chars < 1:
+            msg = f"Invalid context window: {self.translation.context_window_chars}"
             raise ValueError(
-                f"Invalid context window: {self.translation.context_window_chars}"
+                msg
             )
 
 
@@ -84,10 +93,11 @@ def load_config(path: str = "config.yaml") -> Config:
         return _get_default_config()
 
     try:
-        with open(config_path) as f:
+        with config_path.open() as f:
             data = yaml.safe_load(f)
     except Exception as e:
-        raise ValueError(f"Failed to load config from {path}: {e}") from e
+        msg = f"Failed to load config from {path}: {e}"
+        raise ValueError(msg) from e
 
     if data is None:
         return _get_default_config()
@@ -97,7 +107,8 @@ def load_config(path: str = "config.yaml") -> Config:
         config.validate()
         return config
     except Exception as e:
-        raise ValueError(f"Invalid configuration: {e}") from e
+        msg = f"Invalid configuration: {e}"
+        raise ValueError(msg) from e
 
 
 def _parse_config(data: dict[str, Any]) -> Config:

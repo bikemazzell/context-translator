@@ -28,7 +28,8 @@ class TranslationCache:
 
     async def _create_schema(self) -> None:
         if self.db is None:
-            raise RuntimeError("Database not initialized")
+            msg = "Database not initialized"
+            raise RuntimeError(msg)
 
         await self.db.execute(
             """
@@ -61,7 +62,8 @@ class TranslationCache:
 
     async def _check_schema_version(self) -> None:
         if self.db is None:
-            raise RuntimeError("Database not initialized")
+            msg = "Database not initialized"
+            raise RuntimeError(msg)
 
         cursor = await self.db.execute("SELECT version FROM schema_version")
         row = await cursor.fetchone()
@@ -87,7 +89,8 @@ class TranslationCache:
 
     async def get(self, key: str) -> str | None:
         if self.db is None:
-            raise RuntimeError("Database not initialized")
+            msg = "Database not initialized"
+            raise RuntimeError(msg)
 
         cursor = await self.db.execute(
             "SELECT translation FROM translations WHERE hash = ?", (key,)
@@ -110,7 +113,8 @@ class TranslationCache:
         translation: str,
     ) -> None:
         if self.db is None:
-            raise RuntimeError("Database not initialized")
+            msg = "Database not initialized"
+            raise RuntimeError(msg)
 
         timestamp = int(time.time())
 
@@ -128,7 +132,8 @@ class TranslationCache:
 
     async def clear_expired(self, ttl_days: int) -> None:
         if self.db is None:
-            raise RuntimeError("Database not initialized")
+            msg = "Database not initialized"
+            raise RuntimeError(msg)
 
         cutoff_time = int(time.time()) - (ttl_days * 24 * 60 * 60)
 

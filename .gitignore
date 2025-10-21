@@ -11,4 +11,5 @@ htmlcov/
 *.db-wal
 *.db-shm
 .ruff_cache/
-dist/
+**/dist/
+**/*.xpi

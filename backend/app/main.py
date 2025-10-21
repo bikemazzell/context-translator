@@ -149,22 +149,26 @@ async def translate(request: TranslationRequest) -> TranslationResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
-                error="Translation failed", details="Could not process translation. Please try again."
+                error="Translation failed",
+                details="Could not process translation. Please try again.",
             ).model_dump(),
         ) from e
     except Exception as e:
         logger.error(f"Unexpected error during translation: {e}", exc_info=True)
+        provider = config.llm.primary.provider
+        endpoint = config.llm.primary.endpoint
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=ErrorResponse(
                 error="Translation server is not responding",
-                details=f"Is {config.llm.primary.provider} running on {config.llm.primary.endpoint}?",
+                details=f"Is {provider} running on {endpoint}?",
             ).model_dump(),
         ) from e
 
 
 if __name__ == "__main__":
     import os
+
     import uvicorn
 
     cert_file = "certs/cert.pem"

@@ -35,6 +35,11 @@ ignore = [
     "ANN401",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN201", "ANN001", "PLR2004", "S101", "ARG001", "PLC0415", "SIM117"]
+"app/main.py" = ["PLW0603", "ARG001", "PTH110"]  # Globals for FastAPI, os.path in __main__
+"app/llm_client.py" = ["PLR0912"]  # _clean_response needs many branches for robust cleaning
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
@@ -47,6 +52,11 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_any_generics = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

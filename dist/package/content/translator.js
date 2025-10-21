@@ -411,6 +411,14 @@
     // Check for adjacent translations BEFORE creating the display
     const adjacent = findAdjacentTranslations(wrapper);
 
+    console.log('[ContextTranslator] Adjacent translations found:', {
+      left: adjacent.left.length,
+      right: adjacent.right.length,
+      leftTexts: adjacent.left.map(t => t.text || t.translation),
+      rightTexts: adjacent.right.map(t => t.text || t.translation),
+      currentText: originalText
+    });
+
     if (adjacent.left.length > 0 || adjacent.right.length > 0) {
       // This translation should be merged with adjacent ones
       const currentTranslation = {
@@ -422,8 +430,11 @@
 
       const mergedData = mergeTranslations(currentTranslation, adjacent.left, adjacent.right);
       if (mergedData) {
+        console.log('[ContextTranslator] Merge successful:', mergedData.translation);
         // Merge successful
         return;
+      } else {
+        console.log('[ContextTranslator] Merge failed - falling back to standalone');
       }
       // If merge failed (e.g., different parents), fall through to create standalone
     }

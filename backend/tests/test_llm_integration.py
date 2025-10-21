@@ -1,5 +1,6 @@
-import pytest
 import httpx
+import pytest
+
 from app.llm_client import OpenAICompatibleClient
 
 
