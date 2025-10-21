@@ -1,5 +1,7 @@
 # Context Translator - Implementation Plan
 
+**⚠️ DEPRECATED:** This document describes the original bookmarklet-based implementation plan. The project has since evolved to use a Firefox extension architecture with native messaging. See [../README.md](../README.md) for current architecture.
+
 ## Implementation Philosophy
 
 **Core Principles:**
@@ -2674,3 +2676,878 @@ extension/content/
 - All features work after installation
 - Settings persist across restarts
 - Documentation is complete and accurate
+
+---
+
+## Phase 7: Advanced Translation Features
+
+### Task 7.1: Adjacent Translation Merging - Analysis & Design
+**Objective:** Design system to merge adjacent translated words into single cohesive display
+
+**Problem Analysis:**
+
+From the screenshot, we see multiple separate translation boxes for adjacent words:
+```
+[always] [still] [mu] [together]
+```
+
+This creates visual clutter and makes it harder to read the combined translation. The desired behavior is:
+```
+[always still mu together]
+```
+
+**Key Requirements:**
+
+1. **Adjacency Detection:**
+   - Words are considered adjacent if their DOM wrappers are next to each other
+   - No intervening text nodes or elements between them
+   - Same parent container
+
+2. **Merging Scope:**
+   - ONLY merge if words are physically adjacent in the DOM
+   - Do NOT merge if words are separated (even by a single space or element)
+   - Preserve individual word boundaries for later un-merging
+
+3. **User Interaction:**
+   - When user clicks on a new word adjacent to existing translation(s), merge them
+   - When user clicks on a word not adjacent, create separate translation
+   - Clicking on merged translation should remove the entire merged group
+
+4. **Technical Challenges:**
+   - Detecting true adjacency in DOM (not just visual proximity)
+   - Maintaining original word data for each component
+   - Handling different display modes (inline vs tooltip)
+   - Updating wrapper structure when merging
+   - Performance with many translations
+
+**Design Approach:**
+
+**Option A: Merge Wrappers (Recommended)**
+- Keep individual word wrappers for original text
+- Create a single shared translation element spanning all wrappers
+- Track merged groups in data structure
+- Pros: Maintains word boundaries, easier to un-merge
+- Cons: More complex DOM manipulation
+
+**Option B: Single Mega-Wrapper**
+- Combine all adjacent words into one wrapper
+- Single translation element
+- Pros: Simpler DOM structure
+- Cons: Loses individual word boundaries, harder to un-merge
+
+**Decision:** Use Option A (Merge Wrappers)
+
+**Data Structure:**
+
+```javascript
+// Enhanced tracking structure
+let translationGroups = [
+  {
+    id: 'group-1',
+    translations: [
+      { wrapper: elem1, text: 'Haus', translation: 'house' },
+      { wrapper: elem2, text: 'und', translation: 'and' },
+      { wrapper: elem3, text: 'Garten', translation: 'garden' }
+    ],
+    merged: true,
+    displayElement: sharedTranslationElement,
+    startWrapper: elem1,  // First wrapper in group
+    endWrapper: elem3     // Last wrapper in group
+  }
+];
+```
+
+**Algorithm:**
+
+1. **On New Translation Request:**
+   ```
+   a. Get clicked word position/wrapper
+   b. Check if adjacent to existing translation(s)
+   c. If adjacent:
+      - Determine merge direction (left, right, or both)
+      - Combine translation texts
+      - Create/update shared display element
+      - Update tracking structure
+   d. If not adjacent:
+      - Create new independent translation
+   ```
+
+2. **Adjacency Detection:**
+   ```javascript
+   function areAdjacentWrappers(wrapper1, wrapper2) {
+     // Check if wrappers are direct siblings
+     if (wrapper1.nextSibling === wrapper2) return 'right';
+     if (wrapper1.previousSibling === wrapper2) return 'left';
+
+     // Check if only whitespace between them
+     let node = wrapper1.nextSibling;
+     while (node && node !== wrapper2) {
+       if (node.nodeType === Node.TEXT_NODE) {
+         if (node.textContent.trim() !== '') return false;
+       } else if (node.nodeType === Node.ELEMENT_NODE) {
+         return false;
+       }
+       node = node.nextSibling;
+     }
+     return node === wrapper2 ? 'right' : false;
+   }
+   ```
+
+3. **Merging Strategy:**
+   ```
+   - Find all adjacent translated words in sequence
+   - Combine their translations with spaces: "house and garden"
+   - Position merged display above the first word wrapper
+   - Span visually across all wrappers (using CSS positioning)
+   - Store reference to all component translations
+   ```
+
+**Validation:**
+- [ ] Design documented
+- [ ] Algorithm clearly defined
+- [ ] Edge cases identified
+- [ ] Data structure specified
+- [ ] Performance considerations noted
+
+---
+
+### Task 7.2: Implement Adjacency Detection
+**Objective:** Create robust system to detect adjacent translated words
+
+**Implementation:**
+
+1. Create adjacency detection function in `translator.js`:
+
+```javascript
+function findAdjacentTranslations(newWrapper) {
+  const adjacent = {
+    left: [],
+    right: []
+  };
+
+  // Check left side
+  let current = newWrapper.previousSibling;
+  while (current) {
+    if (current.nodeType === Node.ELEMENT_NODE &&
+        current.classList &&
+        current.classList.contains('ct-word-wrapper')) {
+      // Found adjacent wrapper
+      const translation = inlineTranslations.find(t => t.wrapper === current);
+      if (translation) {
+        adjacent.left.unshift(translation);  // Add to front
+        current = current.previousSibling;
+        continue;
+      }
+    } else if (current.nodeType === Node.TEXT_NODE) {
+      // Check if it's just whitespace
+      if (current.textContent.trim() !== '') {
+        break;  // Non-empty text node, not adjacent
+      }
+    } else {
+      break;  // Other element, not adjacent
+    }
+    current = current.previousSibling;
+  }
+
+  // Check right side
+  current = newWrapper.nextSibling;
+  while (current) {
+    if (current.nodeType === Node.ELEMENT_NODE &&
+        current.classList &&
+        current.classList.contains('ct-word-wrapper')) {
+      const translation = inlineTranslations.find(t => t.wrapper === current);
+      if (translation) {
+        adjacent.right.push(translation);
+        current = current.nextSibling;
+        continue;
+      }
+    } else if (current.nodeType === Node.TEXT_NODE) {
+      if (current.textContent.trim() !== '') {
+        break;
+      }
+    } else {
+      break;
+    }
+    current = current.nextSibling;
+  }
+
+  return adjacent;
+}
+```
+
+2. Add helper to check if translation is already part of merged group:
+
+```javascript
+function findTranslationGroup(wrapper) {
+  return inlineTranslations.find(t =>
+    t.wrapper === wrapper ||
+    (t.mergedWrappers && t.mergedWrappers.includes(wrapper))
+  );
+}
+```
+
+**Validation:**
+- [ ] Function correctly identifies adjacent wrappers
+- [ ] Handles whitespace-only text nodes correctly
+- [ ] Stops at non-wrapper elements
+- [ ] Returns correct left and right arrays
+- [ ] Test with various DOM structures:
+  - Direct siblings
+  - Separated by whitespace
+  - Separated by other elements
+  - At start/end of parent
+- [ ] Performance acceptable (O(n) where n is nearby elements)
+
+---
+
+### Task 7.3: Implement Translation Merging Logic
+**Objective:** Merge adjacent translations into unified display
+
+**Implementation:**
+
+1. Create merge function:
+
+```javascript
+function mergeTranslations(centerTranslation, leftTranslations, rightTranslations) {
+  const allTranslations = [...leftTranslations, centerTranslation, ...rightTranslations];
+
+  // Remove existing individual translation displays
+  allTranslations.forEach(t => {
+    if (t.element && t.element.parentElement) {
+      t.element.parentElement.removeChild(t.element);
+    }
+  });
+
+  // Combine translation texts
+  const mergedText = allTranslations
+    .map(t => t.translation)
+    .join(' ');
+
+  // Get the first and last wrappers for positioning
+  const firstWrapper = allTranslations[0].wrapper;
+  const lastWrapper = allTranslations[allTranslations.length - 1].wrapper;
+
+  // Create merged translation display
+  const isDark = getDarkMode();
+  const bgColor = isDark ? '#1a2332' : '#e8f4f8';
+  const textColor = isDark ? '#64b5f6' : '#01579b';
+  const borderColor = isDark ? '#42a5f5' : '#0288d1';
+
+  const mergedElement = document.createElement('span');
+  mergedElement.className = 'ct-inline-translation ct-merged-translation';
+  mergedElement.style.cssText = `
+    position: absolute !important;
+    left: 0 !important;
+    bottom: 100% !important;
+    margin-bottom: 4px !important;
+    background: ${bgColor} !important;
+    border: 2px solid ${borderColor} !important;
+    border-radius: 4px !important;
+    padding: 6px 10px !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    font-size: 14px !important;
+    color: ${textColor} !important;
+    cursor: pointer !important;
+    animation: ct-inline-in 0.2s ease-out !important;
+    z-index: 2147483646 !important;
+    white-space: nowrap !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+    pointer-events: auto !important;
+  `;
+
+  const text = document.createElement('span');
+  text.textContent = mergedText;
+  text.style.cssText = `
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    color: ${textColor} !important;
+  `;
+  mergedElement.appendChild(text);
+
+  // Add click handler to remove entire merged group
+  mergedElement.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    removeMergedTranslation(mergedData);
+  });
+
+  // Attach to first wrapper
+  firstWrapper.appendChild(mergedElement);
+
+  // Calculate width to span all wrappers
+  const firstRect = firstWrapper.getBoundingClientRect();
+  const lastRect = lastWrapper.getBoundingClientRect();
+  const totalWidth = lastRect.right - firstRect.left;
+
+  // Update merged element to span properly (optional visual enhancement)
+  // mergedElement.style.minWidth = `${totalWidth}px`;
+
+  // Create merged data structure
+  const mergedData = {
+    wrapper: firstWrapper,  // Primary wrapper
+    element: mergedElement,
+    translation: mergedText,
+    merged: true,
+    components: allTranslations.map(t => ({
+      wrapper: t.wrapper,
+      text: t.text,
+      translation: t.translation
+    })),
+    mergedWrappers: allTranslations.map(t => t.wrapper)
+  };
+
+  // Remove individual translations from tracking array
+  allTranslations.forEach(t => {
+    const index = inlineTranslations.indexOf(t);
+    if (index > -1) {
+      inlineTranslations.splice(index, 1);
+    }
+  });
+
+  // Add merged translation to tracking
+  inlineTranslations.push(mergedData);
+
+  return mergedData;
+}
+```
+
+2. Create function to remove merged translation:
+
+```javascript
+function removeMergedTranslation(mergedData) {
+  if (mergedData.element && mergedData.element.parentElement) {
+    mergedData.element.parentElement.removeChild(mergedData.element);
+  }
+
+  // Unwrap all component wrappers
+  mergedData.mergedWrappers.forEach(wrapper => {
+    if (wrapper && wrapper.parentNode) {
+      const parent = wrapper.parentNode;
+      while (wrapper.firstChild) {
+        const child = wrapper.firstChild;
+        parent.insertBefore(child, wrapper);
+      }
+      parent.removeChild(wrapper);
+    }
+  });
+
+  // Remove from tracking
+  const index = inlineTranslations.indexOf(mergedData);
+  if (index > -1) {
+    inlineTranslations.splice(index, 1);
+  }
+}
+```
+
+**Validation:**
+- [ ] Merged translation displays correctly
+- [ ] Spans all adjacent words visually
+- [ ] Combined text is properly formatted
+- [ ] Click handler removes entire merged group
+- [ ] All wrappers properly unwrapped on removal
+- [ ] Tracking array updated correctly
+- [ ] Test with 2, 3, 5, 10+ adjacent words
+- [ ] Visual appearance is clean and professional
+- [ ] Dark mode works correctly
+
+---
+
+### Task 7.4: Integrate Merging into Translation Flow
+**Objective:** Update main translation logic to detect and merge adjacent translations
+
+**Implementation:**
+
+1. Update the translation request handler:
+
+```javascript
+async function handleWordClick(text, wordRange) {
+  // ... existing translation request code ...
+
+  // After getting translation, check for adjacent translations
+  const wrapper = /* newly created wrapper */;
+  const adjacent = findAdjacentTranslations(wrapper);
+
+  if (adjacent.left.length > 0 || adjacent.right.length > 0) {
+    // Create new translation data for current word
+    const currentTranslation = {
+      wrapper: wrapper,
+      element: null,  // Will be created by merge
+      text: text,
+      translation: translation
+    };
+
+    // Merge with adjacent translations
+    mergeTranslations(currentTranslation, adjacent.left, adjacent.right);
+  } else {
+    // No adjacent translations, create standalone
+    showInlineTranslation(translation, cached, wordRange);
+  }
+}
+```
+
+2. Update `showInlineTranslation` to support merge-aware creation:
+
+```javascript
+function showInlineTranslation(translation, cached, wordRange, checkMerge = true) {
+  // ... existing wrapper creation code ...
+
+  if (checkMerge) {
+    const adjacent = findAdjacentTranslations(wrapper);
+    if (adjacent.left.length > 0 || adjacent.right.length > 0) {
+      // This translation should be merged
+      const currentTranslation = {
+        wrapper: wrapper,
+        element: null,
+        text: /* extracted text */,
+        translation: translation
+      };
+      mergeTranslations(currentTranslation, adjacent.left, adjacent.right);
+      return;
+    }
+  }
+
+  // ... continue with normal inline translation creation ...
+}
+```
+
+**Validation:**
+- [ ] New translations detect adjacent ones
+- [ ] Automatic merging occurs when appropriate
+- [ ] Non-adjacent translations remain separate
+- [ ] Existing translation flow not broken
+- [ ] Test sequence:
+  - Translate word A
+  - Translate adjacent word B → merges
+  - Translate adjacent word C → merges all three
+  - Translate non-adjacent word D → separate
+  - Translate word E adjacent to D → merges D and E, A-B-C stays separate
+- [ ] No performance degradation
+
+---
+
+### Task 7.5: Handle Edge Cases
+**Objective:** Ensure merging works correctly in all scenarios
+
+**Edge Cases to Handle:**
+
+1. **Re-translating merged group:**
+   - If user clicks on word already in merged group
+   - Should remove entire merged group, or ignore?
+   - **Decision:** Clicking on merged translation removes entire group
+
+2. **Merging across different parents:**
+   - Words in different <p> or <div> elements
+   - Should NOT merge
+   - **Validation:** Check same parent before merging
+
+3. **Mixed display modes:**
+   - User has inline mode on, translates words, then switches to tooltip
+   - Should clear existing translations (already implemented)
+   - Merging only applies to inline mode
+   - **Validation:** Disable merging for tooltip mode
+
+4. **Very long merged translations:**
+   - 10+ adjacent words creating very wide translation
+   - May overflow screen width
+   - **Solution:** Add max-width and text wrapping
+
+5. **Clicking on merged translation:**
+   - Should remove entire merged group
+   - **Implementation:** Already in removeMergedTranslation
+
+6. **Clear All Translations:**
+   - Should remove merged translations correctly
+   - **Validation:** Update clearAllTranslations to handle merged flag
+
+**Implementation:**
+
+```javascript
+function mergeTranslations(centerTranslation, leftTranslations, rightTranslations) {
+  // Add parent check
+  const allTranslations = [...leftTranslations, centerTranslation, ...rightTranslations];
+  const firstParent = allTranslations[0].wrapper.parentElement;
+
+  // Verify all wrappers have same parent
+  const sameParent = allTranslations.every(t =>
+    t.wrapper.parentElement === firstParent
+  );
+
+  if (!sameParent) {
+    // Don't merge across different parents
+    return showInlineTranslation(
+      centerTranslation.translation,
+      false,
+      null,
+      false  // Don't check merge again
+    );
+  }
+
+  // ... rest of merge logic ...
+
+  // Add max-width for long translations
+  mergedElement.style.maxWidth = '80vw';
+  mergedElement.style.whiteSpace = 'normal';
+  mergedElement.style.wordBreak = 'break-word';
+}
+```
+
+**Validation:**
+- [ ] Merging blocked across different parents
+- [ ] Only inline mode uses merging
+- [ ] Tooltip mode unaffected
+- [ ] Long translations wrap properly
+- [ ] Clear all removes merged translations
+- [ ] Re-clicking translated word removes group
+- [ ] Test all edge cases:
+  - Words in different paragraphs
+  - Words in table cells
+  - Words in list items
+  - Very long sequences (20+ words)
+  - Mixed translated/untranslated words
+
+---
+
+### Task 7.6: Visual Enhancements for Merged Translations
+**Objective:** Make merged translations visually distinguishable and polished
+
+**Implementation:**
+
+1. Add visual indicator for merged translations:
+
+```javascript
+// Add subtle indicator that this is a merged translation
+if (allTranslations.length > 1) {
+  mergedElement.style.borderLeft = `4px solid ${borderColor}`;
+
+  // Optional: Add word count badge
+  const badge = document.createElement('span');
+  badge.textContent = `${allTranslations.length}`;
+  badge.style.cssText = `
+    display: inline-block !important;
+    background: ${borderColor} !important;
+    color: white !important;
+    border-radius: 10px !important;
+    padding: 2px 6px !important;
+    font-size: 10px !important;
+    margin-left: 6px !important;
+    font-weight: bold !important;
+  `;
+  mergedElement.appendChild(badge);
+}
+```
+
+2. Add hover effect:
+
+```javascript
+mergedElement.addEventListener('mouseenter', () => {
+  mergedElement.style.transform = 'translateY(-2px)';
+  mergedElement.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+});
+
+mergedElement.addEventListener('mouseleave', () => {
+  mergedElement.style.transform = 'translateY(0)';
+  mergedElement.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+});
+```
+
+3. Add smooth transition:
+
+```javascript
+mergedElement.style.transition = 'all 0.2s ease-out';
+```
+
+**Validation:**
+- [ ] Merged translations visually distinct
+- [ ] Hover effects smooth and professional
+- [ ] Badge displays correct word count
+- [ ] Transitions don't interfere with functionality
+- [ ] Dark mode styling correct
+- [ ] Visual hierarchy clear
+
+---
+
+### Task 7.7: Performance Optimization
+**Objective:** Ensure merging doesn't degrade performance
+
+**Optimizations:**
+
+1. **Cache adjacency checks:**
+```javascript
+// Store last adjacency check to avoid repeated DOM traversal
+let adjacencyCache = new WeakMap();
+
+function findAdjacentTranslations(newWrapper) {
+  const cached = adjacencyCache.get(newWrapper);
+  if (cached && Date.now() - cached.timestamp < 1000) {
+    return cached.result;
+  }
+
+  const result = /* ... perform adjacency check ... */;
+
+  adjacencyCache.set(newWrapper, {
+    result: result,
+    timestamp: Date.now()
+  });
+
+  return result;
+}
+```
+
+2. **Limit merge depth:**
+```javascript
+const MAX_MERGE_WORDS = 20;  // Don't merge more than 20 words
+
+function mergeTranslations(centerTranslation, leftTranslations, rightTranslations) {
+  const allTranslations = [...leftTranslations, centerTranslation, ...rightTranslations];
+
+  if (allTranslations.length > MAX_MERGE_WORDS) {
+    // Too many words, don't merge
+    return showInlineTranslation(centerTranslation.translation, false, null, false);
+  }
+
+  // ... rest of merge logic ...
+}
+```
+
+3. **Batch DOM updates:**
+```javascript
+// Use DocumentFragment for multiple DOM operations
+function removeMergedTranslation(mergedData) {
+  const fragment = document.createDocumentFragment();
+
+  mergedData.mergedWrappers.forEach(wrapper => {
+    if (wrapper && wrapper.parentNode) {
+      while (wrapper.firstChild) {
+        fragment.appendChild(wrapper.firstChild);
+      }
+    }
+  });
+
+  // Single DOM update
+  const parent = mergedData.mergedWrappers[0].parentNode;
+  parent.insertBefore(fragment, mergedData.mergedWrappers[0]);
+
+  // Then remove wrappers
+  mergedData.mergedWrappers.forEach(w => w.remove());
+}
+```
+
+**Validation:**
+- [ ] Adjacency check cached appropriately
+- [ ] Merge limit prevents excessive merging
+- [ ] DOM operations batched
+- [ ] Performance metrics:
+  - Creating merged translation <50ms
+  - Removing merged translation <30ms
+  - No memory leaks with many merge/unmerge cycles
+- [ ] Test with 100+ translations on page
+- [ ] Test rapid clicking (10 words in 2 seconds)
+
+---
+
+### Task 7.8: Update Clear Translations for Merged Groups
+**Objective:** Ensure clearAllTranslations handles merged translations correctly
+
+**Implementation:**
+
+```javascript
+function clearAllTranslations() {
+  // Clear the tracking array first
+  inlineTranslations = [];
+
+  // Method 1: Remove all wrapper elements from DOM
+  const wrappers = document.querySelectorAll('.ct-word-wrapper');
+  wrappers.forEach(wrapper => {
+    try {
+      const parent = wrapper.parentNode;
+      if (parent) {
+        // Move all children (except translation elements) back to parent
+        while (wrapper.firstChild) {
+          const child = wrapper.firstChild;
+          if (child.classList &&
+              (child.classList.contains('ct-inline-translation') ||
+               child.classList.contains('ct-merged-translation'))) {
+            // Remove translation element
+            wrapper.removeChild(child);
+          } else {
+            // Move original word back
+            parent.insertBefore(child, wrapper);
+          }
+        }
+        // Remove the empty wrapper
+        parent.removeChild(wrapper);
+      }
+    } catch (error) {
+      console.error('[ContextTranslator] Error removing wrapper:', error);
+    }
+  });
+
+  // Method 2: Remove any orphaned inline translation elements (including merged)
+  const inlineElements = document.querySelectorAll('.ct-inline-translation, .ct-merged-translation');
+  inlineElements.forEach(element => {
+    try {
+      if (element.parentElement) {
+        element.parentElement.removeChild(element);
+      }
+    } catch (error) {
+      console.error('[ContextTranslator] Error removing inline element:', error);
+    }
+  });
+
+  // Remove any active tooltips
+  removeTooltip();
+}
+```
+
+**Validation:**
+- [ ] Merged translations removed correctly
+- [ ] All wrappers unwrapped
+- [ ] No orphaned elements remain
+- [ ] Test with mix of individual and merged translations
+- [ ] Verify page returns to clean state
+
+---
+
+### Task 7.9: Testing - Comprehensive QA
+**Objective:** Thorough testing of adjacent translation merging
+
+**Test Scenarios:**
+
+1. **Basic Merging:**
+   - [ ] Translate word A
+   - [ ] Translate adjacent word B (should merge)
+   - [ ] Verify single merged display shows "A B"
+
+2. **Sequential Building:**
+   - [ ] Translate word A
+   - [ ] Translate adjacent word B (merges to "A B")
+   - [ ] Translate adjacent word C (merges to "A B C")
+   - [ ] Translate adjacent word D (merges to "A B C D")
+   - [ ] Verify single display spans all four words
+
+3. **Non-Adjacent:**
+   - [ ] Translate word A
+   - [ ] Translate word B (not adjacent)
+   - [ ] Verify two separate displays
+
+4. **Bidirectional Merging:**
+   - [ ] Translate word B
+   - [ ] Translate word A (to the left) → merges
+   - [ ] Translate word C (to the right) → merges all three
+
+5. **Gap Preservation:**
+   - [ ] Translate words "always" and "together"
+   - [ ] Translate word "still" (between them)
+   - [ ] Verify all three merge into one
+
+6. **Different Paragraphs:**
+   - [ ] Translate last word of paragraph 1
+   - [ ] Translate first word of paragraph 2
+   - [ ] Verify NO merge (different parents)
+
+7. **Removal:**
+   - [ ] Create merged translation of A+B+C
+   - [ ] Click on merged translation
+   - [ ] Verify all three wrappers removed
+
+8. **Clear All:**
+   - [ ] Create multiple merged and individual translations
+   - [ ] Click "Clear Translations"
+   - [ ] Verify all removed
+
+9. **Long Sequences:**
+   - [ ] Translate 10 adjacent words
+   - [ ] Verify single merged display
+   - [ ] Verify proper wrapping/styling
+
+10. **Mode Switching:**
+    - [ ] Create merged translations in inline mode
+    - [ ] Switch to tooltip mode
+    - [ ] Verify merged translations cleared
+    - [ ] Verify tooltip mode works normally
+
+**Performance Testing:**
+- [ ] Create 50+ adjacent translated words
+- [ ] Verify merge performance acceptable
+- [ ] Check memory usage
+- [ ] Verify no memory leaks
+
+**Visual Testing:**
+- [ ] Merged translations align properly above words
+- [ ] Styling consistent in light and dark modes
+- [ ] Hover effects work smoothly
+- [ ] Badge (if added) displays correctly
+- [ ] Long translations wrap appropriately
+
+**Edge Cases:**
+- [ ] Re-translating word in merged group
+- [ ] Translating untranslated word between merged groups
+- [ ] Very long translations (100+ characters)
+- [ ] Rapid clicking multiple adjacent words
+- [ ] Browser window resize with merged translations visible
+
+---
+
+### Task 7.10: Documentation Updates
+**Objective:** Document the adjacent translation merging feature
+
+**Updates Required:**
+
+1. **User-Facing Documentation (INSTALLATION.md):**
+   - Add section on translation merging
+   - Explain how adjacent words are automatically merged
+   - Note that clicking merged translation removes all
+
+2. **Code Comments:**
+   - Add detailed comments to merging functions
+   - Document data structure for merged translations
+   - Explain adjacency detection algorithm
+
+3. **README.md:**
+   - Add to features list: "Automatic merging of adjacent translations"
+
+**Validation:**
+- [ ] Documentation clear and accurate
+- [ ] Examples provided
+- [ ] Code comments comprehensive
+
+---
+
+## Phase 7 Completion Checklist
+
+**Implementation:**
+- [ ] Adjacency detection implemented and tested
+- [ ] Translation merging logic complete
+- [ ] Integration with main translation flow working
+- [ ] Edge cases handled correctly
+- [ ] Visual enhancements applied
+- [ ] Performance optimized
+
+**Testing:**
+- [ ] All test scenarios passed
+- [ ] Performance benchmarks met
+- [ ] No regressions in existing functionality
+- [ ] Cross-browser compatibility verified
+
+**Quality:**
+- [ ] Code follows project standards
+- [ ] Comments and documentation complete
+- [ ] No console errors or warnings
+- [ ] Memory usage acceptable
+
+**User Experience:**
+- [ ] Merging happens automatically and smoothly
+- [ ] Visual presentation clear and professional
+- [ ] Removal of merged translations intuitive
+- [ ] No confusing behavior or edge cases
+
+**Success Criteria:**
+- Adjacent translated words merge automatically
+- Merged translations span 2-20+ words seamlessly
+- Visual clutter reduced significantly
+- Performance impact <5ms per merge operation
+- User can easily remove merged translation groups
+- Works reliably across different page structures

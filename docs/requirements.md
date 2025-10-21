@@ -1,21 +1,21 @@
 # Context Translator Requirements
 
 ## Project Overview
-A bookmarklet-based translation tool that provides inline word/phrase translation on any webpage, similar to Readlang.com. Runs locally with a Python backend communicating with LLM inference servers (LMStudio or llama-server).
+A Firefox extension for context-aware translation that provides inline word/phrase translation on any webpage, similar to Readlang.com. Runs locally with a Python backend communicating with LLM inference servers (LMStudio or llama-server).
 
 **Requirements:**
 - Python 3.12+ (developed and tested with Python 3.12.x)
-- Node.js 18+ (for frontend build tools)
-- Modern browser (Chrome or Firefox, latest 2 versions)
+- Firefox Developer Edition or Nightly (for unsigned extensions)
 - LLM server (LMStudio or llama.cpp server) running locally
 
 ## Core Functionality
 
-### 1. Bookmarklet Behavior
-- Single-click activation passes current page URI to context-translator service
-- Injects JavaScript into target page for translation functionality
+### 1. Extension Behavior
+- Browser extension activation via toolbar icon or keyboard shortcut
+- Content script injects translation functionality into web pages
 - Creates floating toolbar for configuration
 - Works on any rendered HTML content (static or SPA)
+- Native messaging with Python backend (no HTTP, no CORS issues)
 
 ### 2. Floating Toolbar
 **Persistent Settings (localStorage):**
@@ -218,16 +218,15 @@ cache/
 
 ## Technical Implementation
 
-### Frontend (Bookmarklet + Injected JS)
+### Frontend (Firefox Extension)
 **Technology:**
 - Vanilla JavaScript (no frameworks for minimal footprint)
-- LocalStorage for settings persistence
+- browser.storage.local for settings persistence
 - Event delegation for click handling
-- Shadow DOM for toolbar isolation (prevent CSS conflicts)
+- Native messaging API for backend communication
 
 **Browser Support:**
-- Chrome (latest 2 versions)
-- Firefox (latest 2 versions)
+- Firefox Developer Edition or Nightly (unsigned extension support)
 
 ### Backend (Python)
 **Technology Stack:**
@@ -253,11 +252,13 @@ context-translator/
 │   │   ├── test_cache.py
 │   │   └── test_llm_client.py
 │   └── requirements.txt
-├── frontend/
-│   ├── bookmarklet.js       (Minified bookmarklet code)
-│   ├── injected.js          (Page injection logic)
-│   ├── toolbar.js           (Floating toolbar UI)
-│   └── translator.js        (Translation request handler)
+├── extension/
+│   ├── manifest.json        (Extension manifest)
+│   ├── background/          (Background scripts)
+│   ├── content/             (Content scripts)
+│   ├── popup/               (Extension popup UI)
+│   ├── native-host/         (Native messaging host)
+│   └── icons/               (Extension icons)
 ├── config.yaml              (Server configuration)
 └── README.md
 ``````
@@ -271,10 +272,9 @@ context-translator/
 - Rate limiting per session (prevent LLM overload)
 
 ### 2. Injection Protection
-- Content Security Policy awareness (bookmarklet limitations)
-- No eval() usage in injected code
+- No eval() usage in content scripts
 - Sanitize LLM responses before DOM insertion
-- Shadow DOM isolation for toolbar
+- Proper extension permissions and CSP compliance
 
 ### 3. Local-Only Operation
 - No external data transmission (privacy by design)
@@ -303,9 +303,10 @@ context-translator/
   - Error toast display
 
 ### 3. Integration Tests
-- Full bookmarklet � backend � LLM flow
+- Full extension → backend → LLM flow
 - Cache behavior verification
 - Provider failover testing
+- Native messaging communication
 
 ## Configuration
 
@@ -345,21 +346,21 @@ translation:
     # ... extensible
 ```
 
-### Frontend Configuration (localStorage)
+### Extension Configuration (browser.storage.local)
 ```javascript
 {
   sourceLang: "German",
   targetLang: "English",
-  translationEnabled: false,
+  enabled: false,
   contextMode: true,
-  displayMode: "tooltip"  // tooltip | popover | inline
+  displayMode: "inline"  // tooltip or inline
 }
 ```
 
 ## Performance Requirements
 - Translation response time: <2s (including LLM inference)
 - Cache lookup: <50ms
-- Bookmarklet injection: <500ms
+- Extension activation: <500ms
 - UI interactions: <100ms response
 
 ## Future Extensibility
@@ -371,12 +372,13 @@ translation:
 - Pronunciation audio (TTS integration)
 
 ## Success Criteria
-1. Bookmarklet successfully injects on 95% of tested websites
+1. Extension successfully activates on 95% of tested websites
 2. Translation accuracy acceptable for casual learning
 3. No noticeable performance impact on target pages
 4. Settings persist correctly across sessions
 5. Clear error messages for all failure scenarios
 6. Cache reduces LLM calls by >70% for repeated content
+7. Native messaging communication reliable and performant
 
 ## Development Phases
 
@@ -387,12 +389,13 @@ translation:
 - Translation endpoint
 - Unit tests
 
-### Phase 2: Basic Frontend (Week 1-2)
-- Bookmarklet structure
-- Page injection
-- Simple tooltip translation
+### Phase 2: Extension Development (Week 1-2)
+- Firefox extension manifest and structure
+- Content script injection
+- Simple tooltip/inline translation
 - Settings toolbar
-- LocalStorage persistence
+- browser.storage.local persistence
+- Native messaging setup
 
 ### Phase 3: Enhanced Features (Week 2)
 - Context mode implementation
@@ -408,9 +411,10 @@ translation:
 - Cache performance tuning
 
 ## Deliverables
-1. Python backend service (installable via pip)
-2. Bookmarklet code (copy-paste ready)
+1. Python backend service with native messaging host
+2. Firefox extension (.xpi package)
 3. Configuration templates
 4. README with setup instructions
 5. Test suite with >80% coverage
 6. Example LLM prompts for common models
+7. Installation scripts for native messaging

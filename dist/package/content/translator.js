@@ -290,14 +290,47 @@
   }
 
   function clearAllTranslations() {
-    inlineTranslations.forEach(data => {
-      if (data.wrapper) {
-        removeInlineTranslation(data);
-      } else if (data.element && data.element.parentElement) {
-        data.element.parentElement.removeChild(data.element);
+    // Clear the tracking array first
+    inlineTranslations = [];
+
+    // Method 1: Remove all wrapper elements from DOM
+    const wrappers = document.querySelectorAll('.ct-word-wrapper');
+    wrappers.forEach(wrapper => {
+      try {
+        const parent = wrapper.parentNode;
+        if (parent) {
+          // Move all children (except translation elements) back to parent
+          while (wrapper.firstChild) {
+            const child = wrapper.firstChild;
+            if (child.classList && child.classList.contains('ct-inline-translation')) {
+              // Remove translation element
+              wrapper.removeChild(child);
+            } else {
+              // Move original word back
+              parent.insertBefore(child, wrapper);
+            }
+          }
+          // Remove the empty wrapper
+          parent.removeChild(wrapper);
+        }
+      } catch (error) {
+        console.error('[ContextTranslator] Error removing wrapper:', error);
       }
     });
-    inlineTranslations = [];
+
+    // Method 2: Remove any orphaned inline translation elements
+    const inlineElements = document.querySelectorAll('.ct-inline-translation');
+    inlineElements.forEach(element => {
+      try {
+        if (element.parentElement) {
+          element.parentElement.removeChild(element);
+        }
+      } catch (error) {
+        console.error('[ContextTranslator] Error removing inline element:', error);
+      }
+    });
+
+    // Remove any active tooltips
     removeTooltip();
   }
 
@@ -342,15 +375,15 @@
   // TRANSLATION DISPLAY
   // ============================================
 
-  function showTranslation(translation, x, y, cached, wordRange) {
+  function showTranslation(translation, x, y, cached, wordRange, originalText = '') {
     if (settings.displayMode === 'inline' && wordRange) {
-      showInlineTranslation(translation, cached, wordRange);
+      showInlineTranslation(translation, cached, wordRange, originalText);
     } else {
       showTooltipTranslation(translation, x, y, cached);
     }
   }
 
-  function showInlineTranslation(translation, cached, wordRange) {
+  function showInlineTranslation(translation, cached, wordRange, originalText = '') {
     const isDark = getDarkMode();
 
     const bgColor = isDark ? '#1a2332' : '#e8f4f8';
@@ -375,7 +408,27 @@
       return;
     }
 
-    // Create translation element
+    // Check for adjacent translations BEFORE creating the display
+    const adjacent = findAdjacentTranslations(wrapper);
+
+    if (adjacent.left.length > 0 || adjacent.right.length > 0) {
+      // This translation should be merged with adjacent ones
+      const currentTranslation = {
+        wrapper: wrapper,
+        element: null,
+        text: originalText,
+        translation: translation
+      };
+
+      const mergedData = mergeTranslations(currentTranslation, adjacent.left, adjacent.right);
+      if (mergedData) {
+        // Merge successful
+        return;
+      }
+      // If merge failed (e.g., different parents), fall through to create standalone
+    }
+
+    // Create standalone translation element
     const inline = document.createElement('span');
     inline.className = 'ct-inline-translation';
     inline.style.cssText = `
@@ -405,7 +458,12 @@
     text.style.cssText = `font-weight: 600 !important; font-size: 14px !important; color: ${textColor} !important;`;
     inline.appendChild(text);
 
-    const inlineData = { wrapper, element: inline };
+    const inlineData = {
+      wrapper,
+      element: inline,
+      text: originalText,
+      translation: translation
+    };
 
     inline.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -472,6 +530,12 @@
   }
 
   function removeInlineTranslation(inlineData) {
+    if (inlineData.merged) {
+      // This is a merged translation, use special removal
+      removeMergedTranslation(inlineData);
+      return;
+    }
+
     if (inlineData.wrapper) {
       // Unwrap the word - move children back to parent
       const parent = inlineData.wrapper.parentNode;
@@ -493,6 +557,250 @@
     }
 
     const index = inlineTranslations.indexOf(inlineData);
+    if (index > -1) {
+      inlineTranslations.splice(index, 1);
+    }
+  }
+
+  // ============================================
+  // ADJACENCY DETECTION & MERGING
+  // ============================================
+
+  function findAdjacentTranslations(newWrapper) {
+    const adjacent = {
+      left: [],
+      right: []
+    };
+
+    // Check left side - continue scanning until we find all wrappers or hit a boundary
+    let current = newWrapper.previousSibling;
+    while (current) {
+      if (current.nodeType === Node.ELEMENT_NODE &&
+          current.classList &&
+          current.classList.contains('ct-word-wrapper')) {
+        // Found a wrapper - check if it has a translation
+        const translation = inlineTranslations.find(t =>
+          t.wrapper === current ||
+          (t.mergedWrappers && t.mergedWrappers.includes(current))
+        );
+        if (translation) {
+          adjacent.left.unshift(translation);
+          current = current.previousSibling;
+          continue;
+        } else {
+          // Wrapper without translation - stop scanning
+          break;
+        }
+      } else if (current.nodeType === Node.TEXT_NODE) {
+        // Keep scanning past text nodes (even non-empty ones)
+        // We want to find wrappers that have gaps between them
+        current = current.previousSibling;
+        continue;
+      } else if (current.nodeType === Node.ELEMENT_NODE) {
+        // Non-wrapper element (like <div>, <p>, etc.) - stop here
+        break;
+      }
+      current = current.previousSibling;
+    }
+
+    // Check right side - continue scanning until we find all wrappers or hit a boundary
+    current = newWrapper.nextSibling;
+    while (current) {
+      if (current.nodeType === Node.ELEMENT_NODE &&
+          current.classList &&
+          current.classList.contains('ct-word-wrapper')) {
+        // Found a wrapper - check if it has a translation
+        const translation = inlineTranslations.find(t =>
+          t.wrapper === current ||
+          (t.mergedWrappers && t.mergedWrappers.includes(current))
+        );
+        if (translation) {
+          adjacent.right.push(translation);
+          current = current.nextSibling;
+          continue;
+        } else {
+          // Wrapper without translation - stop scanning
+          break;
+        }
+      } else if (current.nodeType === Node.TEXT_NODE) {
+        // Keep scanning past text nodes
+        current = current.nextSibling;
+        continue;
+      } else if (current.nodeType === Node.ELEMENT_NODE) {
+        // Non-wrapper element - stop here (different parent boundary)
+        break;
+      }
+      current = current.nextSibling;
+    }
+
+    return adjacent;
+  }
+
+  function mergeTranslations(centerTranslation, leftTranslations, rightTranslations) {
+    const MAX_MERGE_WORDS = 20;
+
+    // Flatten any merged translations into their components
+    const flattenTranslation = (t) => {
+      if (t.merged && t.components) {
+        return t.components;
+      }
+      return [t];
+    };
+
+    const leftFlat = leftTranslations.flatMap(flattenTranslation);
+    const centerFlat = flattenTranslation(centerTranslation);
+    const rightFlat = rightTranslations.flatMap(flattenTranslation);
+
+    const allTranslations = [...leftFlat, ...centerFlat, ...rightFlat];
+
+    // Check merge limit
+    if (allTranslations.length > MAX_MERGE_WORDS) {
+      return null;  // Don't merge, too many words
+    }
+
+    // Verify all wrappers have same parent
+    if (allTranslations.length > 1) {
+      const firstParent = allTranslations[0].wrapper.parentElement;
+      const sameParent = allTranslations.every(t =>
+        t.wrapper && t.wrapper.parentElement === firstParent
+      );
+
+      if (!sameParent) {
+        return null;  // Don't merge across different parents
+      }
+    }
+
+    // Remove existing translation displays
+    [centerTranslation, ...leftTranslations, ...rightTranslations].forEach(t => {
+      if (t.element && t.element.parentElement) {
+        t.element.parentElement.removeChild(t.element);
+      }
+      // Remove from tracking array
+      const index = inlineTranslations.indexOf(t);
+      if (index > -1) {
+        inlineTranslations.splice(index, 1);
+      }
+    });
+
+    // Combine translation texts
+    const mergedText = allTranslations
+      .map(t => t.translation)
+      .join(' ');
+
+    // Get the first and last wrappers for positioning
+    const firstWrapper = allTranslations[0].wrapper;
+    const lastWrapper = allTranslations[allTranslations.length - 1].wrapper;
+
+    // Create merged translation display
+    const isDark = getDarkMode();
+    const bgColor = isDark ? '#1a2332' : '#e8f4f8';
+    const textColor = isDark ? '#64b5f6' : '#01579b';
+    const borderColor = isDark ? '#42a5f5' : '#0288d1';
+
+    const mergedElement = document.createElement('span');
+    mergedElement.className = 'ct-inline-translation ct-merged-translation';
+    mergedElement.style.cssText = `
+      position: absolute !important;
+      left: 0 !important;
+      bottom: 100% !important;
+      margin-bottom: 4px !important;
+      background: ${bgColor} !important;
+      border: 2px solid ${borderColor} !important;
+      border-radius: 4px !important;
+      padding: 6px 10px !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+      font-size: 14px !important;
+      color: ${textColor} !important;
+      cursor: pointer !important;
+      animation: ct-inline-in 0.2s ease-out !important;
+      z-index: 2147483646 !important;
+      white-space: normal !important;
+      max-width: 80vw !important;
+      word-break: break-word !important;
+      display: block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+      pointer-events: auto !important;
+      transition: all 0.2s ease-out !important;
+    `;
+
+    // Add visual indicator for merged translations
+    if (allTranslations.length > 1) {
+      mergedElement.style.borderLeft = `4px solid ${borderColor}`;
+    }
+
+    const text = document.createElement('span');
+    text.textContent = mergedText;
+    text.style.cssText = `
+      font-weight: 600 !important;
+      font-size: 14px !important;
+      color: ${textColor} !important;
+    `;
+    mergedElement.appendChild(text);
+
+    // Create merged data structure
+    const mergedData = {
+      wrapper: firstWrapper,
+      element: mergedElement,
+      translation: mergedText,
+      merged: true,
+      components: allTranslations.map(t => ({
+        wrapper: t.wrapper,
+        text: t.text,
+        translation: t.translation
+      })),
+      mergedWrappers: allTranslations.map(t => t.wrapper)
+    };
+
+    // Add click handler to remove entire merged group
+    mergedElement.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      removeMergedTranslation(mergedData);
+    });
+
+    // Add hover effects
+    mergedElement.addEventListener('mouseenter', () => {
+      mergedElement.style.transform = 'translateY(-2px)';
+      mergedElement.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+    });
+
+    mergedElement.addEventListener('mouseleave', () => {
+      mergedElement.style.transform = 'translateY(0)';
+      mergedElement.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+    });
+
+    // Attach to first wrapper
+    firstWrapper.appendChild(mergedElement);
+
+    // Add merged translation to tracking
+    inlineTranslations.push(mergedData);
+
+    return mergedData;
+  }
+
+  function removeMergedTranslation(mergedData) {
+    if (mergedData.element && mergedData.element.parentElement) {
+      mergedData.element.parentElement.removeChild(mergedData.element);
+    }
+
+    // Unwrap all component wrappers
+    if (mergedData.mergedWrappers) {
+      mergedData.mergedWrappers.forEach(wrapper => {
+        if (wrapper && wrapper.parentNode) {
+          const parent = wrapper.parentNode;
+          while (wrapper.firstChild) {
+            const child = wrapper.firstChild;
+            parent.insertBefore(child, wrapper);
+          }
+          parent.removeChild(wrapper);
+        }
+      });
+    }
+
+    // Remove from tracking
+    const index = inlineTranslations.indexOf(mergedData);
     if (index > -1) {
       inlineTranslations.splice(index, 1);
     }
@@ -624,7 +932,7 @@
       });
 
       if (response.success) {
-        showTranslation(response.data.translation, x, y, response.data.cached, wordRange);
+        showTranslation(response.data.translation, x, y, response.data.cached, wordRange, text);
       }
     } catch (error) {
       // Silently fail - don't spam user with errors
