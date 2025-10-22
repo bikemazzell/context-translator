@@ -7,67 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Comprehensive API documentation with OpenAPI/Swagger
-- Production-safe logging utility inline in background script
-- Semantic versioning documentation (`VERSIONING.md`)
-- `/cache/clear` endpoint for clearing translation cache
+## [1.0.2] - 2025-01-22
 
 ### Changed
-- **BREAKING:** Replaced native messaging with direct HTTP communication
-  - Extension now communicates directly with FastAPI backend via localhost:8080
-  - Removed native messaging host and all related files
-  - Simplified architecture: no more stdio protocol or native messaging manifests
-  - Better debugging with standard HTTP request/response visibility
-- Consolidated cache locations to single directory
-- Improved configuration default handling
-- Message handler now uses map pattern for better maintainability
-- Extracted magic numbers to named constants in LLM client
-- Backend startup script now launches FastAPI with uvicorn instead of native host
+- Removed all inline CSS from HTML files for better code organization
+- Updated packaging scripts to match current extension structure
+- Improved CI/CD workflow with test execution and package validation
+- Enhanced README with architecture diagram and comprehensive documentation
 
-### Removed
-- Native messaging infrastructure (host script, manifest, installation script)
-- `nativeMessaging` permission from extension manifest
+### Added
+- Release preparation script for version synchronization
+- Automated package structure validation in CI/CD
+- Version badges to README
+
+## [1.0.1] - 2025-01-21
 
 ### Fixed
-- Inconsistent cache paths resolved to absolute paths
-- Logger loading issues in Firefox background scripts (moved to inline definition)
+- Various bug fixes and stability improvements
+- UI improvements and CSS refinements
 
-## [1.0.0] - 2025-10-21
+## [1.0.0] - 2025-01-20
 
 ### Added
 - Initial stable release
 - Context-aware translation using local LLM models
-- Native messaging architecture between Firefox extension and Python backend
-- SQLite-based translation cache with TTL and LRU eviction
-- FastAPI backend with async support
-- Support for multiple LLM providers (LMStudio, llama-server)
-- Automatic fallback to secondary LLM if primary fails
-- Input validation and sanitization
+- Direct communication with OpenAI-compatible LLM servers
+- IndexedDB-based translation cache
+- Support for multiple LLM providers (LMStudio, Ollama, etc.)
 - Dark mode support with auto-detection
 - Inline and tooltip display modes
 - Configurable context window for translation
 - Keyboard shortcut (Ctrl+Alt+C) for quick toggle
-- Comprehensive test suite with 81% coverage
-- Type safety with mypy strict mode
-- Code quality enforcement with ruff
+- Comprehensive test suite
+- Firefox Manifest V3 architecture
 
 ### Security
-- Localhost-only middleware for API access
-- Input sanitization to prevent injection attacks
-- All dependencies pinned to exact versions
-
-## [0.1.0] - 2025-10-15
-
-### Added
-- Initial prototype
-- Basic translation functionality
-- Firefox extension scaffold
+- Localhost-only connections for privacy
+- All data processing happens locally
 
 ---
 
 ## Version Links
 
-- [Unreleased]: https://github.com/yourusername/context-translator/compare/v1.0.0...HEAD
+- [Unreleased]: https://github.com/yourusername/context-translator/compare/v1.0.2...HEAD
+- [1.0.2]: https://github.com/yourusername/context-translator/releases/tag/v1.0.2
+- [1.0.1]: https://github.com/yourusername/context-translator/releases/tag/v1.0.1
 - [1.0.0]: https://github.com/yourusername/context-translator/releases/tag/v1.0.0
-- [0.1.0]: https://github.com/yourusername/context-translator/releases/tag/v0.1.0
