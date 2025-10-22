@@ -2,71 +2,194 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <style>
-    body {
-      width: 250px;
-      padding: 15px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: 13px;
-      background: #1e1e1e;
-      color: #e0e0e0;
-      margin: 0;
-    }
-    h3 {
-      margin: 0 0 12px 0;
-      font-size: 15px;
-      font-weight: 600;
-      color: #e0e0e0;
-    }
-    button {
-      width: 100%;
-      padding: 10px;
-      background: #0288d1;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-      transition: background 0.2s;
-    }
-    button:hover {
-      background: #0277bd;
-    }
-    button:active {
-      background: #01579b;
-    }
-    .status {
-      margin-top: 12px;
-      padding: 10px;
-      background: #2a2a2a;
-      border-radius: 4px;
-      font-size: 12px;
-      color: #999;
-      border: 1px solid #3a3a3a;
-    }
-    .shortcut {
-      margin-top: 8px;
-      font-size: 11px;
-      color: #666;
-      text-align: center;
-    }
-    .shortcut kbd {
-      background: #2a2a2a;
-      border: 1px solid #3a3a3a;
-      border-radius: 3px;
-      padding: 2px 6px;
-      font-family: monospace;
-      font-size: 11px;
-      color: #64b5f6;
-    }
-  </style>
+  <link rel="stylesheet" href="../content/styles/popup.css">
 </head>
 <body>
-  <h3>Context Translator</h3>
-  <button id="toggle">Toggle Translator</button>
-  <div class="status" id="status">Click to activate translator on current page</div>
-  <div class="shortcut">Shortcut: <kbd>Ctrl+Alt+C</kbd></div>
-  <script src="popup.js"></script>
+  <div id="main-screen">
+    <div class="header">
+      <h3>Context Translator</h3>
+    </div>
+    <div class="control-row">
+      <label>Translator</label>
+      <div class="toggle-with-gear">
+        <label class="toggle-switch">
+          <input type="checkbox" id="translator-toggle">
+          <span class="slider"></span>
+        </label>
+        <button class="gear-btn" id="settings-btn">⚙</button>
+      </div>
+    </div>
+    <div class="shortcut-hint">Ctrl+Alt+C</div>
+  </div>
+
+  <div id="settings-screen" class="hidden">
+    <div class="header">
+      <button class="back-btn" id="back-btn">‹</button>
+      <h3>Settings</h3>
+    </div>
+    <div class="settings-content">
+      <!-- Languages Section -->
+      <div class="setting-section setting-section-first">
+        <h4>Languages</h4>
+
+        <!-- Language list with add and delete options -->
+        <details class="language-details">
+          <summary>Manage Languages</summary>
+
+          <!-- Add language form (hidden by default) -->
+          <div id="add-language-form" class="hidden add-language-form">
+            <div class="add-language-input-group">
+              <input type="text" id="new-language-input" placeholder="Language name" class="flex-1" maxlength="50">
+              <button class="icon-btn save" id="save-language-btn" title="Save">✓</button>
+              <button class="icon-btn cancel" id="cancel-language-btn" title="Cancel">✕</button>
+            </div>
+          </div>
+
+          <div id="language-list" class="language-list"></div>
+        </details>
+
+        <div class="setting-row">
+          <label for="setting-source-lang">Source</label>
+          <select id="setting-source-lang"></select>
+        </div>
+
+        <div class="setting-row">
+          <label for="setting-target-lang">Target</label>
+          <select id="setting-target-lang"></select>
+        </div>
+      </div>
+
+      <!-- Display Section -->
+      <div class="setting-section">
+        <h4>Display</h4>
+
+        <div class="setting-row">
+          <label for="setting-display-mode">Mode</label>
+          <select id="setting-display-mode">
+            <option value="inline">Inline</option>
+            <option value="tooltip">Tooltip</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <label>Dark Mode</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="setting-dark-mode">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <label>Log to Console</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="setting-enable-logging">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Translation Styling Section -->
+      <div class="setting-section">
+        <h4>Translation Styling</h4>
+
+        <div class="setting-row">
+          <label for="setting-text-color">Font Color</label>
+          <div class="color-picker-wrapper">
+            <input type="color" id="setting-text-color" class="color-input">
+            <div class="color-preview" id="text-color-preview"></div>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <label for="setting-bg-color">Background</label>
+          <div class="color-picker-wrapper">
+            <input type="color" id="setting-bg-color" class="color-input">
+            <div class="color-preview" id="bg-color-preview"></div>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <label for="setting-bg-opacity">Opacity</label>
+          <div class="slider-with-value">
+            <input type="range" id="setting-bg-opacity" min="0" max="100" step="1">
+            <span id="bg-opacity-value">90%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- LLM Server Section -->
+      <div class="setting-section">
+        <h4>LLM Server</h4>
+
+        <div class="setting-row">
+          <label for="setting-llm-host">Host</label>
+          <input type="text" id="setting-llm-host" placeholder="localhost">
+        </div>
+
+        <div class="setting-row">
+          <label for="setting-llm-port">Port</label>
+          <input type="number" id="setting-llm-port" placeholder="1234" min="1" max="65535">
+        </div>
+      </div>
+
+      <!-- Rate Limiting Section -->
+      <div class="setting-section">
+        <h4>Rate Limiting</h4>
+
+        <div class="setting-row">
+          <label>Enable Rate Limit</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="setting-use-rate-limit">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <label for="setting-rate-limit">Requests per Minute</label>
+          <input type="number" id="setting-rate-limit" min="1" max="120" placeholder="10">
+        </div>
+      </div>
+
+      <!-- Cache Section -->
+      <div class="setting-section">
+        <h4>Cache</h4>
+
+        <div class="setting-row">
+          <label>Use Cache</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="setting-use-cache">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <button class="action-btn secondary" id="clear-cache-btn">Clear Cache</button>
+      </div>
+
+      <!-- Context Section -->
+      <div class="setting-section">
+        <h4>Context</h4>
+
+        <div class="setting-row">
+          <label>Use Context</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="setting-context-mode">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <label for="setting-context-chars">Window</label>
+          <input type="number" id="setting-context-chars" min="0" max="1000" step="50" placeholder="200">
+        </div>
+      </div>
+
+      <!-- Actions Section -->
+      <div class="setting-section">
+        <button class="action-btn secondary" id="clear-translations-btn">Clear Translations</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js" type="module"></script>
 </body>
 </html>

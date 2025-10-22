@@ -1,0 +1,121 @@
+/**
+ * Translation display styles (inline and tooltip)
+ */
+
+/* Word wrapper (contains original word + translation) */
+.ct-word-wrapper {
+  position: relative !important;
+  display: inline !important;
+}
+
+/* Inline translation */
+.ct-inline-translation {
+  position: absolute !important;
+  left: 0 !important;
+  bottom: 100% !important;
+  margin-bottom: 4px !important;
+  border-radius: 4px !important;
+  padding: 6px 10px !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  animation: ct-inline-in 0.2s ease-out !important;
+  z-index: 2147483647 !important;
+  white-space: nowrap !important;
+  max-width: min(600px, 80vw) !important;
+  display: inline-block !important;
+  width: max-content !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+  transition: all 0.2s ease-out !important;
+}
+
+/* Light mode */
+.ct-inline-translation {
+  background: #e8f4f8 !important;
+  color: #01579b !important;
+  border: 2px solid #0288d1 !important;
+}
+
+/* Dark mode */
+.ct-inline-translation.ct-dark-mode {
+  background: #1a2332 !important;
+  color: #64b5f6 !important;
+  border: 2px solid #42a5f5 !important;
+}
+
+/* Hover effect */
+.ct-inline-translation:hover {
+  opacity: 0.9 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+}
+
+/* Merged translation indicator */
+.ct-merged-translation {
+  border-left-width: 4px !important;
+}
+
+/* Tooltip translation */
+#ct-translation-popup {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  border-radius: 6px !important;
+  padding: 12px 16px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  max-width: 300px !important;
+  word-wrap: break-word !important;
+  animation: ct-popup-in 0.2s ease-out !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Tooltip light mode */
+#ct-translation-popup {
+  background: #fff !important;
+  color: #333 !important;
+  border: 2px solid #0288d1 !important;
+}
+
+/* Tooltip dark mode */
+#ct-translation-popup.ct-dark-mode {
+  background: #2a2a2a !important;
+  color: #e0e0e0 !important;
+  border: 2px solid #42a5f5 !important;
+}
+
+/* Toast notifications */
+.ct-toast {
+  position: fixed !important;
+  top: 80px !important;
+  right: 20px !important;
+  z-index: 2147483647 !important;
+  color: white !important;
+  padding: 12px 20px !important;
+  border-radius: 4px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 14px !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  animation: ct-toast-in 0.3s ease-out !important;
+}
+
+.ct-toast.ct-info {
+  background: #2196F3 !important;
+}
+
+.ct-toast.ct-success {
+  background: #4CAF50 !important;
+}
+
+.ct-toast.ct-error {
+  background: #f44336 !important;
+}

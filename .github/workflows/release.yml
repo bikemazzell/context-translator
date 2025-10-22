@@ -23,6 +23,12 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
       - name: Install web-ext
         run: npm install -g web-ext
 
@@ -44,17 +50,59 @@ jobs:
 
       - name: Package extension
         run: |
-          cd extension
-          zip -r ../context-translator-unsigned.xpi * \
-            -x "*.git*" \
-            -x "*node_modules*" \
-            -x "*.DS_Store"
+          # Create build directory structure
+          mkdir -p dist/package
+
+          # Copy manifest
+          cp extension/manifest.json dist/package/
+
+          # Copy extension files, excluding tests, node_modules, and READMEs
+          rsync -a --exclude='tests' --exclude='node_modules' --exclude='*.test.js' --exclude='README.md' \
+            extension/background \
+            extension/content \
+            extension/shared \
+            extension/popup \
+            extension/icons \
+            dist/package/
+
+          # Create unsigned .xpi package
+          cd dist/package
+          zip -r ../../context-translator-unsigned.xpi ./*
+          cd ../..
+
+      - name: Validate package structure
+        run: |
+          echo "Validating package structure..."
+
+          # Verify the package is a valid ZIP
+          if ! unzip -t context-translator-unsigned.xpi > /dev/null 2>&1; then
+            echo "Error: Package is not a valid ZIP file"
+            exit 1
+          fi
+
+          # Check manifest.json is at root
+          if ! unzip -l context-translator-unsigned.xpi | grep -q "manifest.json$"; then
+            echo "Error: manifest.json not at package root"
+            exit 1
+          fi
+
+          # Check no test files are included
+          if unzip -l context-translator-unsigned.xpi | grep -q "\.test\.js$\|/tests/"; then
+            echo "Error: Test files found in package"
+            unzip -l context-translator-unsigned.xpi | grep "\.test\.js$\|/tests/"
+            exit 1
+          fi
+
+          echo "✓ Package structure validated"
+          echo ""
+          echo "Package contents:"
+          unzip -l context-translator-unsigned.xpi | tail -2
 
       - name: Sign extension with Mozilla
         id: sign
         run: |
           web-ext sign \
-            --source-dir=extension \
+            --source-dir=dist/package \
             --api-key="${{ secrets.AMO_API_KEY }}" \
             --api-secret="${{ secrets.AMO_API_SECRET }}" \
             --channel=unlisted \

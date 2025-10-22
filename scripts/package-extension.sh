@@ -25,8 +25,6 @@ fi
 EXTENSION_DIR="extension"
 BUILD_DIR="dist"
 PACKAGE_NAME="context-translator.xpi"
-NATIVE_HOST_DIR="$HOME/.mozilla/native-messaging-hosts"
-NATIVE_HOST_MANIFEST="context_translator_host.json"
 
 # Functions
 print_step() {
@@ -72,9 +70,9 @@ print_success "Found valid manifest.json (version $VERSION)"
 # Step 2: Validate required files exist
 print_step "Checking required files..."
 REQUIRED_FILES=(
-    "$EXTENSION_DIR/background/background.js"
-    "$EXTENSION_DIR/content/translator.js"
-    "$EXTENSION_DIR/content/translator.css"
+    "$EXTENSION_DIR/background/service-worker.js"
+    "$EXTENSION_DIR/content/loader.js"
+    "$EXTENSION_DIR/content/main.js"
     "$EXTENSION_DIR/popup/popup.html"
     "$EXTENSION_DIR/popup/popup.js"
     "$EXTENSION_DIR/icons/icon-48.png"
@@ -105,20 +103,17 @@ print_success "Build directory created"
 # Step 4: Copy extension files
 print_step "Copying extension files..."
 
-# Create directory structure
-mkdir -p "$BUILD_DIR/package/background"
-mkdir -p "$BUILD_DIR/package/content"
-mkdir -p "$BUILD_DIR/package/popup"
-mkdir -p "$BUILD_DIR/package/icons"
-
-# Copy files
+# Copy manifest
 cp "$EXTENSION_DIR/manifest.json" "$BUILD_DIR/package/"
-cp "$EXTENSION_DIR/background/background.js" "$BUILD_DIR/package/background/"
-cp "$EXTENSION_DIR/content/translator.js" "$BUILD_DIR/package/content/"
-cp "$EXTENSION_DIR/content/translator.css" "$BUILD_DIR/package/content/"
-cp "$EXTENSION_DIR/popup/popup.html" "$BUILD_DIR/package/popup/"
-cp "$EXTENSION_DIR/popup/popup.js" "$BUILD_DIR/package/popup/"
-cp "$EXTENSION_DIR/icons/"*.png "$BUILD_DIR/package/icons/"
+
+# Copy entire directory structure, excluding tests, node_modules, and READMEs
+rsync -a --exclude='tests' --exclude='node_modules' --exclude='*.test.js' --exclude='README.md' \
+    "$EXTENSION_DIR/background" \
+    "$EXTENSION_DIR/content" \
+    "$EXTENSION_DIR/shared" \
+    "$EXTENSION_DIR/popup" \
+    "$EXTENSION_DIR/icons" \
+    "$BUILD_DIR/package/"
 
 print_success "Extension files copied"
 

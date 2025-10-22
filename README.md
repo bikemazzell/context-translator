@@ -1,268 +1,228 @@
 # Context Translator
 
-A Firefox extension for context-aware translation using local LLM models. Translate words and phrases directly on web pages with intelligent context understanding.
+A Firefox extension for context-aware translation using local LLM servers. Translate words and phrases directly on web pages with intelligent context understanding—no backend required.
 
-## Features
+## Overview
 
-- **Context-Aware Translation:** Send surrounding text to improve translation accuracy
-- **Inline & Tooltip Display:** Choose how translations appear on the page
-- **Dark Mode Support:** Auto-detects and adapts to your browser theme
-- **Persistent Settings:** All preferences saved across browser sessions
-- **Keyboard Shortcuts:** Quick toggle with `Ctrl+Alt+C`
-- **Smart Caching:** Fast repeated lookups with SQLite cache
-- **Privacy-First:** All processing happens locally on your machine
-- **Simple Architecture:** Direct HTTP communication from extension to local backend
+Context Translator enhances translation accuracy by sending surrounding text to your local LLM, helping it understand ambiguous words in context. All processing happens locally on your machine for complete privacy.
+
+**Key Features:**
+- Context-aware translation using surrounding text
+- Direct communication with local LLM servers (LMStudio, Ollama, etc.)
+- Inline and tooltip display modes
+- Smart caching for instant repeated lookups
+- Customizable styling and languages
+- 100% local and private
 
 ## Architecture
 
-```
-┌─────────────────┐
-│ Firefox Browser │
-│  ┌───────────┐  │
-│  │ Extension │  │
-│  └─────┬─────┘  │
-└────────┼────────┘
-         │ HTTP (localhost:8080)
-         ▼
-┌─────────────────┐
-│ FastAPI Backend │
-│  ┌───────────┐  │
-│  │   Cache   │  │
-│  │ (SQLite)  │  │
-│  └───────────┘  │
-└────────┬────────┘
-         │ HTTP API
-         ▼
-┌─────────────────┐
-│   LLM Server    │
-│ (LMStudio, etc) │
-└─────────────────┘
+```mermaid
+graph LR
+    A[Web Page] --> B[Firefox Extension]
+    B --> C[IndexedDB Cache]
+    B --> D[Local LLM Server]
+    D --> E[LMStudio/Ollama/etc]
+
+    style B fill:#0288d1,color:#fff
+    style C fill:#4caf50,color:#fff
+    style D fill:#ff9800,color:#fff
 ```
 
-## Quick Start
+The extension runs entirely in your browser, communicating only with your local LLM server. No external services, no data collection.
 
-### Prerequisites
+## Installation
 
-- **Firefox Developer Edition or Nightly** (for unsigned extensions)
-- **Python 3.12+** with `aiosqlite` and `httpx`
-- **LLM Server** (LMStudio, llama.cpp, or any OpenAI-compatible API)
+### Quick Install
 
-### Installation
+1. Download the latest `.xpi` from [Releases](../../releases)
+2. Open Firefox and navigate to `about:addons`
+3. Click the gear icon → "Install Add-on From File"
+4. Select the downloaded `.xpi` file
 
-1. **Clone the repository:**
-   ```bash
-   git clone <repository-url>
-   cd context-translator
-   ```
+### From Source
 
-2. **Install Python dependencies:**
-   ```bash
-   cd backend
-   pip install -r requirements.txt
-   ```
+```bash
+# Clone repository
+git clone <repository-url>
+cd context-translator
 
-3. **Start the backend:**
-   ```bash
-   ./scripts/start-backend.sh
-   ```
+# Install dependencies and run tests
+npm install
+npm test
 
-4. **Start your LLM server** (e.g., LMStudio on port 1234)
+# Package extension
+./scripts/package-extension.sh
 
-5. **Package the extension:**
-   ```bash
-   ./scripts/package-extension.sh
-   ```
-
-6. **Install in Firefox:**
-   - Set `xpinstall.signatures.required = false` in `about:config`
-   - Open `about:addons` → gear icon → "Install Add-on From File"
-   - Select `dist/context-translator.xpi`
-
-For detailed installation instructions, see [docs/INSTALLATION.md](docs/INSTALLATION.md).
+# Install dist/context-translator.xpi in Firefox
+```
 
 ## Usage
 
-1. **Activate the translator:** Click the extension icon or press `Ctrl+Alt+C`
-2. **Configure languages:** Select source and target languages in the toolbar
-3. **Translate text:** Click any word on the page
-4. **Adjust settings:** Use the toolbar to customize display mode, context, and more
+### Setup
+
+1. **Start your LLM server** (LMStudio, Ollama, etc.) on `localhost:1234`
+2. **Click the extension icon** to open settings
+3. **Configure languages** - Add and select source/target languages
+4. **Configure LLM endpoint** - Set host and port if not using defaults
+
+### Translating
+
+1. **Toggle translator** - Click extension icon or press `Ctrl+Alt+C`
+2. **Click any word** on the page to translate it
+3. **View translation** - Appears inline or in tooltip (configurable)
 
 ### Keyboard Shortcuts
 
 - `Ctrl+Alt+C` - Toggle translator on/off
 
-### Display Modes
+## Settings
 
-- **Inline:** Translation appears directly above the clicked word
-- **Tooltip:** Translation appears in a floating box
+### Languages
 
-### Settings
+- **Manage Languages** - Add custom languages beyond the defaults
+- **Source Language** - Language of the text you're reading
+- **Target Language** - Language to translate into
 
-- **Context Mode:** Include surrounding text for better translation accuracy
-- **Context Window:** Number of characters around the word to include (default: 200)
-- **Use Cache:** Enable caching for faster repeated lookups
-- **Dark Mode:** Auto-detect or manually set light/dark theme
-- **Server Configuration:** Customize backend host and port
+### Display
+
+- **Mode** - Inline (above word) or Tooltip (floating box)
+- **Dark Mode** - Follows system preference or manual override
+- **Log to Console** - Enable debug logging for troubleshooting
+
+### Translation Styling
+
+- **Font Color** - Color of translated text
+- **Background** - Background color for translations
+- **Opacity** - Background transparency (0-100%)
+
+### LLM Server
+
+- **Host** - LLM server hostname (default: `localhost`)
+- **Port** - LLM server port (default: `1234`)
+
+### Rate Limiting
+
+- **Enable Rate Limit** - Throttle translation requests
+- **Requests per Minute** - Maximum requests (1-120)
+
+### Cache
+
+- **Use Cache** - Enable instant lookups for repeated translations
+- **Clear Cache** - Remove all cached translations
+
+### Context
+
+- **Use Context** - Send surrounding text to improve accuracy
+- **Window** - Characters of context around word (0-1000)
 
 ## Development
 
 ### Project Structure
 
 ```
-context-translator/
-├── backend/                # FastAPI backend
-│   ├── app/                # Application code
-│   ├── tests/              # Backend tests
-│   └── requirements.txt    # Python dependencies
-├── extension/              # Firefox extension
-│   ├── manifest.json
-│   ├── background/         # Background scripts
-│   ├── content/            # Content scripts (main translator)
-│   ├── popup/              # Extension popup UI
-│   └── icons/              # Extension icons
-├── scripts/                # Build and utility scripts
-│   ├── package-extension.sh    # Package extension as .xpi
-│   └── start-backend.sh        # Start backend server
-├── docs/                   # Documentation
-│   ├── INSTALLATION.md     # Installation guide
-│   ├── implementation.md   # Implementation plan
-│   └── requirements.md     # Requirements specification
-├── dist/                   # Build output (generated)
-└── config.yaml             # Backend configuration
-```
-
-### Building from Source
-
-```bash
-# Package the extension
-./scripts/package-extension.sh
-
-# Test backend manually
-./scripts/start-backend.sh
+extension/
+├── manifest.json           # Extension manifest (MV3)
+├── background/            # Service worker and background tasks
+│   ├── service-worker.js  # Main background script
+│   ├── message-handler.js # Message routing
+│   ├── llm-client.js      # LLM API client
+│   ├── cache-manager.js   # IndexedDB cache
+│   └── ...
+├── content/               # Content scripts
+│   ├── main.js           # Main translation logic
+│   ├── handlers/         # Click and text extraction
+│   ├── ui/               # UI components
+│   └── styles/           # CSS files
+├── shared/               # Shared utilities
+│   ├── settings-manager.js
+│   ├── language-manager.js
+│   └── ...
+├── popup/                # Extension popup
+│   ├── popup.html
+│   └── popup.js
+└── tests/                # Jest test suite
 ```
 
 ### Testing
 
-The extension can be tested in two ways:
+```bash
+# Run all tests
+npm test
 
-1. **Temporary Installation** (for development):
-   - Navigate to `about:debugging`
-   - Click "Load Temporary Add-on"
-   - Select `extension/manifest.json`
-   - Extension unloads when Firefox closes
+# Run specific test file
+npm test -- llm-client
 
-2. **Permanent Installation** (for testing):
-   - Package with `./scripts/package-extension.sh`
-   - Install via `about:addons` as described above
-   - Extension persists across browser restarts
-
-## Documentation
-
-- [Installation Guide](docs/INSTALLATION.md) - Complete setup instructions
-- [Implementation Plan](docs/implementation.md) - Technical implementation details
-- [Requirements Specification](docs/requirements.md) - Original requirements and specifications
-
-## Configuration
-
-### Backend Configuration (`config.yaml`)
-
-```yaml
-llm:
-  primary:
-    provider: lmstudio
-    endpoint: http://localhost:1234/v1/chat/completions
-    timeout: 30
-    model_name: gemma-3-27b-it
-
-cache:
-  path: ./cache/translations.db
-  ttl_days: 30
-  max_size_mb: 100
+# Run with coverage
+npm test -- --coverage
 ```
 
-### Extension Settings
+### Packaging
 
-All extension settings are configurable via the toolbar:
-- Source and target languages
-- Display mode (inline/tooltip)
-- Context mode and window size
-- Cache preferences
-- Server connection details
+```bash
+# Create distributable .xpi
+./scripts/package-extension.sh
 
-Settings persist across browser sessions automatically.
+# Output: dist/context-translator.xpi
+```
 
-## Troubleshooting
+## Tested LLM Servers
 
-### Extension won't install
-- Ensure you're using Firefox Developer Edition or Nightly
-- Check `xpinstall.signatures.required` is set to `false` in `about:config`
+Works with any OpenAI-compatible API:
 
-### Backend won't start
-- Ensure Python 3.12+ is installed
-- Install dependencies: `cd backend && pip install -r requirements.txt`
-- Check that port 8080 is not already in use
+- **LMStudio** - Recommended, easiest setup
+- **Ollama** - `OLLAMA_ORIGINS=* ollama serve`
+- **llama.cpp** - With `--api-key` flag
+- **text-generation-webui** - OpenAI extension enabled
+- **vLLM** - OpenAI-compatible mode
 
-### Translations don't work
-- Ensure LLM server is running (test: `curl http://localhost:1234/v1/models`)
-- Check browser console for errors (F12 → Console)
-- Verify server settings in extension toolbar
+### Recommended Models
 
-For more troubleshooting, see [docs/INSTALLATION.md](docs/INSTALLATION.md#troubleshooting).
+- Gemma 2 9B/27B
+- Llama 3.1/3.2 8B
+- Qwen 2.5 7B
+- Mistral 7B
 
-## Performance
-
-- **Translation Speed:** 1-2 seconds with LLM (first request), <50ms with cache
-- **Package Size:** 20KB
-- **Memory Usage:** Minimal (<10MB)
-- **Cache Size:** Configurable (default: 100MB max)
+Larger models provide better translation quality, especially for context awareness.
 
 ## Privacy & Security
 
-- **100% Local:** All processing happens on your machine
-- **No External Requests:** Extension only communicates with localhost backend
-- **No Data Collection:** No analytics, tracking, or telemetry
-- **Cache Privacy:** Translations stored locally in SQLite database
-- **Localhost Only:** Backend API restricted to localhost connections only
+- **100% Local** - All processing on your machine
+- **No Telemetry** - Zero analytics or tracking
+- **Localhost Only** - Extension only connects to `localhost` or `127.0.0.1`
+- **Cache Privacy** - Translations stored locally in IndexedDB
+- **Open Source** - Full transparency, audit the code yourself
 
-## Tested Models
+## Troubleshooting
 
-The extension works with any OpenAI-compatible LLM server. Tested models include:
-- Gemma 2 9B / 27B (recommended)
-- Llama 3.1 8B
-- Mistral 7B
-- Qwen 2.5
+### Extension won't load
+- Use Firefox Developer Edition or Nightly for unsigned extensions
+- Set `xpinstall.signatures.required = false` in `about:config`
 
-## Known Limitations
+### Translations fail
+- Verify LLM server is running: `curl http://localhost:1234/v1/models`
+- Check browser console (F12) for error messages
+- Ensure server host/port match settings
 
-- **Unsigned Extension:** Requires Firefox Developer/Nightly Edition for permanent installation
-- **Local Only:** Backend must run on the same machine as the browser
-- **Single Browser:** Only supports Firefox (Chrome would need different approach)
-- **LLM Required:** Requires a running LLM server for translations
+### Cache issues
+- Clear cache via Settings → Cache → Clear Cache
+- Disable cache temporarily to test if cache is causing issues
+
+## License
+
+MIT License - See LICENSE file for details
 
 ## Contributing
 
 Contributions welcome! Please:
+
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
+3. Write tests for new features
+4. Ensure all tests pass (`npm test`)
 5. Submit a pull request
-
-## License
-
-[To be added - specify your license here]
-
-## Acknowledgments
-
-- Built with Firefox WebExtensions API
-- FastAPI backend with asyncio and aiosqlite
-- Designed for local LLM inference
-- Localhost-only architecture for privacy and security
 
 ## Support
 
-For issues, questions, or feature requests:
-- Open an issue on GitHub
-- Check [INSTALLATION.md](docs/INSTALLATION.md) for troubleshooting
-- Review [implementation.md](docs/implementation.md) for technical details
-
+- **Issues** - [GitHub Issues](../../issues)
+- **Discussions** - [GitHub Discussions](../../discussions)
+- **Releases** - [GitHub Releases](../../releases)

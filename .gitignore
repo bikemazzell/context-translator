@@ -12,6 +12,8 @@ htmlcov/
 *.db-shm
 .ruff_cache/
 **/dist/
+**/coverage/
+**/node_modules/
 
 # Extension build artifacts
 web-ext-artifacts/
