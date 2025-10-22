@@ -12,4 +12,8 @@ htmlcov/
 *.db-shm
 .ruff_cache/
 **/dist/
-**/*.xpi
+
+# Extension build artifacts
+web-ext-artifacts/
+*.xpi
+.release-notes.md

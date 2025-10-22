@@ -79,8 +79,6 @@ REQUIRED_FILES=(
     "$EXTENSION_DIR/popup/popup.js"
     "$EXTENSION_DIR/icons/icon-48.png"
     "$EXTENSION_DIR/icons/icon-96.png"
-    "$EXTENSION_DIR/native-host/context_translator_host.py"
-    "$EXTENSION_DIR/native-host/$NATIVE_HOST_MANIFEST"
 )
 
 MISSING_FILES=0
@@ -112,7 +110,6 @@ mkdir -p "$BUILD_DIR/package/background"
 mkdir -p "$BUILD_DIR/package/content"
 mkdir -p "$BUILD_DIR/package/popup"
 mkdir -p "$BUILD_DIR/package/icons"
-mkdir -p "$BUILD_DIR/package/native-host"
 
 # Copy files
 cp "$EXTENSION_DIR/manifest.json" "$BUILD_DIR/package/"
@@ -122,11 +119,6 @@ cp "$EXTENSION_DIR/content/translator.css" "$BUILD_DIR/package/content/"
 cp "$EXTENSION_DIR/popup/popup.html" "$BUILD_DIR/package/popup/"
 cp "$EXTENSION_DIR/popup/popup.js" "$BUILD_DIR/package/popup/"
 cp "$EXTENSION_DIR/icons/"*.png "$BUILD_DIR/package/icons/"
-cp "$EXTENSION_DIR/native-host/context_translator_host.py" "$BUILD_DIR/package/native-host/"
-cp "$EXTENSION_DIR/native-host/$NATIVE_HOST_MANIFEST" "$BUILD_DIR/package/native-host/"
-
-# Ensure Python script is executable
-chmod +x "$BUILD_DIR/package/native-host/context_translator_host.py"
 
 print_success "Extension files copied"
 
@@ -162,37 +154,6 @@ fi
 
 print_success "Package structure validated"
 
-# Step 7: Setup native messaging host
-print_step "Setting up native messaging host..."
-
-# Create native messaging directory if it doesn't exist
-mkdir -p "$NATIVE_HOST_DIR"
-
-# Get absolute path to Python script
-PYTHON_SCRIPT_PATH="$(cd "$(dirname "$EXTENSION_DIR/native-host/context_translator_host.py")" && pwd)/$(basename "$EXTENSION_DIR/native-host/context_translator_host.py")"
-
-# Update native host manifest with correct path
-TEMP_MANIFEST=$(mktemp)
-python3 -c "
-import json
-with open('$EXTENSION_DIR/native-host/$NATIVE_HOST_MANIFEST', 'r') as f:
-    manifest = json.load(f)
-manifest['path'] = '$PYTHON_SCRIPT_PATH'
-with open('$TEMP_MANIFEST', 'w') as f:
-    json.dump(manifest, f, indent=2)
-"
-
-# Copy updated manifest to native messaging directory
-cp "$TEMP_MANIFEST" "$NATIVE_HOST_DIR/$NATIVE_HOST_MANIFEST"
-rm "$TEMP_MANIFEST"
-
-# Ensure Python script is executable
-chmod +x "$PYTHON_SCRIPT_PATH"
-
-print_success "Native messaging host configured"
-print_success "Manifest installed: $NATIVE_HOST_DIR/$NATIVE_HOST_MANIFEST"
-print_success "Python script: $PYTHON_SCRIPT_PATH"
-
 # Print summary
 echo ""
 echo "========================================="
@@ -202,66 +163,6 @@ echo ""
 echo "Package: $BUILD_DIR/$PACKAGE_NAME"
 echo "Size: $PACKAGE_SIZE"
 echo "Version: $VERSION"
-echo ""
-
-# Print installation instructions
-echo "========================================="
-echo " Installation Instructions"
-echo "========================================="
-echo ""
-echo -e "${YELLOW}IMPORTANT:${NC} Regular Firefox will reject unsigned extensions!"
-echo "You must use Firefox Developer Edition or Nightly."
-echo ""
-echo "Download: https://www.mozilla.org/firefox/developer/"
-echo ""
-echo "========================================="
-echo ""
-echo "Firefox Developer Edition or Nightly:"
-echo ""
-echo "1. Configure Firefox for unsigned extensions:"
-echo "   - Open 'about:config'"
-echo "   - Accept the risk warning"
-echo "   - Search for: xpinstall.signatures.required"
-echo "   - Click toggle to set it to: false"
-echo "   - Restart Firefox"
-echo ""
-echo "2. Install the extension:"
-echo "   - Open 'about:addons'"
-echo "   - Click the gear icon (⚙️)"
-echo "   - Select 'Install Add-on From File...'"
-echo "   - Navigate to: $BUILD_DIR/$PACKAGE_NAME"
-echo "   - Click 'Open'"
-echo ""
-echo "3. The extension will persist across browser restarts!"
-echo ""
-echo "Alternative (Testing Only):"
-echo "   - Open 'about:debugging'"
-echo "   - Click 'This Firefox'"
-echo "   - Click 'Load Temporary Add-on...'"
-echo "   - Select 'extension/manifest.json'"
-echo "   - NOTE: Unloads when Firefox closes"
-echo ""
-echo "See docs/FIREFOX-SETUP.md for detailed instructions"
-echo ""
-echo "========================================="
-echo " Troubleshooting"
-echo "========================================="
-echo ""
-echo "If native messaging fails:"
-echo "  - Check Python script path: $PYTHON_SCRIPT_PATH"
-echo "  - Ensure script is executable: chmod +x <script>"
-echo "  - Check native host manifest: $NATIVE_HOST_DIR/$NATIVE_HOST_MANIFEST"
-echo "  - Restart Firefox after installing"
-echo ""
-echo "If translations don't work:"
-echo "  - Ensure backend server is running (check health endpoint)"
-echo "  - Check browser console for errors"
-echo "  - Verify settings in extension toolbar"
-echo ""
-echo "For Firefox Release Edition:"
-echo "  - Cannot install unsigned extensions permanently"
-echo "  - Use temporary installation: about:debugging → Load Temporary Add-on"
-echo "  - OR submit extension to Mozilla Add-ons for signing"
 echo ""
 
 print_success "Done! Extension ready to install."

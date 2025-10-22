@@ -203,7 +203,7 @@ SELECT * FROM translations LIMIT 10;
 curl -X POST http://localhost:1234/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "gemma-2-27b-it",
+    "model": "gemma-3-27b-it",
     "messages": [{"role": "user", "content": "Hello"}]
   }'
 ```

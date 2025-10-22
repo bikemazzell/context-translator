@@ -31,7 +31,7 @@ async def test_cache_initialization_creates_directory():
 
 @pytest.mark.asyncio
 async def test_cache_set_and_get(cache):
-    key = cache._generate_key("Hello", "English", "German", None)
+    key = cache.generate_key("Hello", "English", "German", None)
     await cache.set(key, "Hello", "English", "German", "Hallo")
 
     result = await cache.get(key)
@@ -46,29 +46,29 @@ async def test_cache_miss_returns_none(cache):
 
 @pytest.mark.asyncio
 async def test_cache_key_generation_is_consistent(cache):
-    key1 = cache._generate_key("Hello", "English", "German", None)
-    key2 = cache._generate_key("Hello", "English", "German", None)
+    key1 = cache.generate_key("Hello", "English", "German", None)
+    key2 = cache.generate_key("Hello", "English", "German", None)
     assert key1 == key2
 
 
 @pytest.mark.asyncio
 async def test_cache_key_includes_context(cache):
-    key1 = cache._generate_key("Bank", "German", "English", "Ich sitze auf der Bank")
-    key2 = cache._generate_key("Bank", "German", "English", "Die Bank ist geschlossen")
+    key1 = cache.generate_key("Bank", "German", "English", "Ich sitze auf der Bank")
+    key2 = cache.generate_key("Bank", "German", "English", "Die Bank ist geschlossen")
     assert key1 != key2
 
 
 @pytest.mark.asyncio
 async def test_cache_key_different_for_no_context(cache):
-    key1 = cache._generate_key("Bank", "German", "English", None)
-    key2 = cache._generate_key("Bank", "German", "English", "")
+    key1 = cache.generate_key("Bank", "German", "English", None)
+    key2 = cache.generate_key("Bank", "German", "English", "")
     assert key1 == key2
 
 
 @pytest.mark.asyncio
 async def test_cache_clear_expired(cache):
-    old_key = cache._generate_key("Old", "English", "German", None)
-    new_key = cache._generate_key("New", "English", "German", None)
+    old_key = cache.generate_key("Old", "English", "German", None)
+    new_key = cache.generate_key("New", "English", "German", None)
 
     await cache.set(old_key, "Old", "English", "German", "Alt")
 
@@ -93,7 +93,7 @@ async def test_cache_clear_expired(cache):
 @pytest.mark.asyncio
 async def test_cache_get_size(cache):
     await cache.set(
-        cache._generate_key("Test", "English", "German", None),
+        cache.generate_key("Test", "English", "German", None),
         "Test",
         "English",
         "German",
@@ -106,7 +106,7 @@ async def test_cache_get_size(cache):
 
 @pytest.mark.asyncio
 async def test_cache_or_replace_updates_existing(cache):
-    key = cache._generate_key("Hello", "English", "German", None)
+    key = cache.generate_key("Hello", "English", "German", None)
 
     await cache.set(key, "Hello", "English", "German", "Hallo")
     await cache.set(key, "Hello", "English", "German", "Guten Tag")

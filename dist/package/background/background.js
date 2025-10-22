@@ -1,130 +1,130 @@
-// Background script - handles native messaging with Python backend
+// Background script - handles HTTP communication with FastAPI backend
 
-const NATIVE_APP_NAME = "context_translator_host";
+// Production-safe logger (set DEBUG=true for verbose logging)
+var DEBUG = false;
+var logger = {
+  info: function() {
+    if (DEBUG) console.log('[CT]', ...arguments);
+  },
+  warn: function() {
+    if (DEBUG) console.warn('[CT]', ...arguments);
+  },
+  error: function() {
+    console.error('[CT]', ...arguments);
+  },
+  debug: function() {
+    if (DEBUG) console.debug('[CT]', ...arguments);
+  }
+};
+
+// Backend HTTP endpoint
+const BACKEND_URL = 'http://localhost:8080';
+
+// Message handler map for routing
+const messageHandlers = {
+  translate: handleTranslateRequest,
+  getLanguages: handleGetLanguagesRequest,
+  checkHealth: handleHealthCheckRequest,
+  clearCache: handleClearCacheRequest,
+};
 
 // Listen for messages from content scripts
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "translate") {
-    handleTranslateRequest(message.data)
-      .then(response => sendResponse({ success: true, data: response }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true;
+  const handler = messageHandlers[message.type];
+
+  if (!handler) {
+    sendResponse({
+      success: false,
+      error: `Unknown message type: ${message.type}`
+    });
+    return false;
   }
 
-  if (message.type === "getLanguages") {
-    handleGetLanguagesRequest()
-      .then(response => sendResponse({ success: true, data: response }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true;
-  }
+  // Call handler and wrap response
+  handler(message.data)
+    .then(data => sendResponse({ success: true, data }))
+    .catch(error => sendResponse({ success: false, error: error.message }));
 
-  if (message.type === "checkHealth") {
-    handleHealthCheckRequest()
-      .then(response => sendResponse({ success: true, data: response }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true;
-  }
-
-  if (message.type === "clearCache") {
-    handleClearCacheRequest()
-      .then(response => sendResponse({ success: true, data: response }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true;
-  }
+  return true; // Indicates async response
 });
 
-// Send translation request to native app
-async function handleTranslateRequest(data) {
-  const request = {
-    action: "translate",
-    payload: data
-  };
+// HTTP fetch helper
+async function fetchBackend(endpoint, options = {}) {
+  const url = `${BACKEND_URL}${endpoint}`;
+  logger.debug("[Background] Fetching:", url);
 
-  console.log("[Background] Sending to native app:", request);
-  const response = await sendNativeMessage(request);
-  console.log("[Background] Received from native app:", response);
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers
+    }
+  });
 
-  if (response.error) {
-    throw new Error(response.error);
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errorText}`);
   }
 
-  return response.result;
+  return await response.json();
+}
+
+// Send translation request to backend
+async function handleTranslateRequest(data) {
+  logger.info("[Background] Sending translation request");
+
+  const result = await fetchBackend('/translate', {
+    method: 'POST',
+    body: JSON.stringify({
+      text: data.text,
+      source_lang: data.source_lang,
+      target_lang: data.target_lang,
+      context: data.context || null,
+      use_cache: data.use_cache !== false
+    })
+  });
+
+  logger.info("[Background] Translation received");
+  return result;
 }
 
 // Get supported languages
 async function handleGetLanguagesRequest() {
-  const request = {
-    action: "getLanguages",
-    payload: {}
-  };
+  logger.info("[Background] Fetching languages");
 
-  const response = await sendNativeMessage(request);
+  const result = await fetchBackend('/languages', {
+    method: 'GET'
+  });
 
-  if (response.error) {
-    throw new Error(response.error);
-  }
-
-  return response.result;
+  return result;
 }
 
 // Health check
 async function handleHealthCheckRequest() {
-  const request = {
-    action: "health",
-    payload: {}
-  };
-
   try {
-    const response = await sendNativeMessage(request);
-    return response.result || { status: "healthy" };
+    logger.info("[Background] Health check");
+
+    const result = await fetchBackend('/health', {
+      method: 'GET'
+    });
+
+    return result;
   } catch (error) {
-    return { status: "unhealthy", error: error.message };
+    logger.error("[Background] Health check failed:", error.message);
+    return { status: 'unhealthy', error: error.message };
   }
 }
 
 // Clear cache
 async function handleClearCacheRequest() {
-  const request = {
-    action: "clearCache",
-    payload: {}
-  };
+  logger.info("[Background] Clearing cache");
 
-  const response = await sendNativeMessage(request);
-
-  if (response.error) {
-    throw new Error(response.error);
-  }
-
-  return response.result;
-}
-
-// Send message to native application
-function sendNativeMessage(message) {
-  return new Promise((resolve, reject) => {
-    try {
-      const port = browser.runtime.connectNative(NATIVE_APP_NAME);
-
-      port.onMessage.addListener((response) => {
-        console.log("[Background] Native app response:", response);
-        port.disconnect();
-        resolve(response);
-      });
-
-      port.onDisconnect.addListener(() => {
-        const error = browser.runtime.lastError;
-        if (error) {
-          console.error("[Background] Native app disconnect error:", error);
-          reject(new Error(`Native messaging error: ${error.message}`));
-        }
-      });
-
-      console.log("[Background] Sending to native app:", message);
-      port.postMessage(message);
-    } catch (error) {
-      console.error("[Background] Failed to connect to native app:", error);
-      reject(error);
-    }
+  const result = await fetchBackend('/cache/clear', {
+    method: 'POST',
+    body: JSON.stringify({})
   });
+
+  return result;
 }
 
 // Listen for keyboard shortcut
@@ -139,4 +139,4 @@ browser.commands.onCommand.addListener((command) => {
   }
 });
 
-console.log("[Background] Context Translator background script loaded");
+logger.info("[Background] Context Translator background script loaded");

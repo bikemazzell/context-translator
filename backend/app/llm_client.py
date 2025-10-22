@@ -9,8 +9,14 @@ from .prompts import build_messages
 
 logger = logging.getLogger(__name__)
 
+# LLM Request Constants
+DEFAULT_TEMPERATURE = 0.3
+DEFAULT_MAX_TOKENS = 100
+DEFAULT_MAX_RETRIES = 3
+
 
 class LLMClient(ABC):
+    """Abstract base class for LLM clients."""
     @abstractmethod
     async def translate(
         self, text: str, source_lang: str, target_lang: str, context: str | None = None
@@ -32,12 +38,12 @@ class OpenAICompatibleClient(LLMClient):
         payload = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.3,
-            "max_tokens": 100,
+            "temperature": DEFAULT_TEMPERATURE,
+            "max_tokens": DEFAULT_MAX_TOKENS,
             "stop": ["\n\n", "Input:", "Translate"],
         }
 
-        max_retries = 3
+        max_retries = DEFAULT_MAX_RETRIES
         last_error: Exception | None = None
 
         for attempt in range(max_retries):
@@ -53,25 +59,61 @@ class OpenAICompatibleClient(LLMClient):
 
             except httpx.TimeoutException as e:
                 last_error = e
-                logger.warning(f"Attempt {attempt + 1}/{max_retries}: Request timeout")
+                logger.warning(
+                    f"Attempt {attempt + 1}/{max_retries}: Request timeout after {self.timeout}s "
+                    f"(endpoint: {self.endpoint}, model: {self.model})"
+                )
                 if attempt < max_retries - 1:
                     await self._exponential_backoff(attempt)
             except httpx.HTTPStatusError as e:
                 last_error = e
-                logger.error(f"HTTP error {e.response.status_code}: {e.response.text}")
-                msg = f"LLM server error: {e.response.status_code}"
+                logger.error(
+                    f"HTTP error: {e.response.status_code} from {self.endpoint}",
+                    extra={
+                        "endpoint": self.endpoint,
+                        "model": self.model,
+                        "status_code": e.response.status_code,
+                        "response_body": e.response.text[:500],
+                    },
+                )
+                msg = (
+                    f"LLM server returned error {e.response.status_code}. "
+                    f"Check that {self.endpoint} is accessible and "
+                    f"the model '{self.model}' is available."
+                )
                 raise ValueError(msg) from e
             except (KeyError, IndexError) as e:
                 last_error = e
-                logger.error(f"Invalid response format: {e}")
-                msg = "Invalid response from LLM"
+                logger.error(
+                    f"Invalid response format from LLM: {e}",
+                    extra={
+                        "endpoint": self.endpoint,
+                        "model": self.model,
+                        "error_type": type(e).__name__,
+                    },
+                )
+                msg = (
+                    f"LLM response format is invalid. "
+                    f"Expected OpenAI-compatible format from {self.endpoint}"
+                )
                 raise ValueError(msg) from e
             except Exception as e:
                 last_error = e
-                logger.error(f"Unexpected error: {e}")
+                logger.error(
+                    f"Unexpected error during translation: {e}",
+                    extra={
+                        "endpoint": self.endpoint,
+                        "model": self.model,
+                        "error_type": type(e).__name__,
+                    },
+                    exc_info=True,
+                )
                 raise
 
-        msg = f"Translation failed after {max_retries} attempts"
+        msg = (
+            f"Translation failed after {max_retries} attempts. "
+            f"Last error: {type(last_error).__name__ if last_error else 'Unknown'}"
+        )
         raise ValueError(msg) from last_error
 
     async def _exponential_backoff(self, attempt: int) -> None:
@@ -157,3 +199,56 @@ class OpenAICompatibleClient(LLMClient):
             raise ValueError(msg)
 
         return cleaned
+
+
+class FallbackLLMClient(LLMClient):
+    """LLM client with automatic fallback support."""
+
+    def __init__(self, primary: LLMClient, fallback: LLMClient | None = None) -> None:
+        self.primary = primary
+        self.fallback = fallback
+
+    async def translate(
+        self, text: str, source_lang: str, target_lang: str, context: str | None = None
+    ) -> str:
+        try:
+            return await self.primary.translate(text, source_lang, target_lang, context)
+        except Exception as e:
+            if self.fallback:
+                logger.warning(
+                    f"Primary LLM failed with {type(e).__name__}: {e}. Attempting fallback...",
+                    extra={
+                        "error_type": type(e).__name__,
+                        "source_lang": source_lang,
+                        "target_lang": target_lang,
+                    },
+                )
+                try:
+                    result = await self.fallback.translate(
+                        text, source_lang, target_lang, context
+                    )
+                    logger.info(
+                        "Fallback LLM succeeded after primary failure",
+                        extra={
+                            "source_lang": source_lang,
+                            "target_lang": target_lang,
+                        },
+                    )
+                    return result
+                except Exception as fallback_error:
+                    logger.error(
+                        f"Fallback LLM also failed with {type(fallback_error).__name__}: "
+                        f"{fallback_error}",
+                        extra={
+                            "primary_error": str(e),
+                            "fallback_error": str(fallback_error),
+                            "source_lang": source_lang,
+                            "target_lang": target_lang,
+                        },
+                    )
+                    both_failed_msg = (
+                        f"Both primary and fallback LLMs failed. "
+                        f"Primary: {type(e).__name__}, Fallback: {type(fallback_error).__name__}"
+                    )
+                    raise ValueError(both_failed_msg) from fallback_error
+            raise

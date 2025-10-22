@@ -1,0 +1,13 @@
+{
+  "addons": {
+    "context-translator@bike-mazzell": {
+      "updates": [
+        {
+          "version": "1.0.0",
+          "update_link": "https://github.com/bike-mazzell/context-translator/releases/download/v1.0.0/context_translator-1.0.0.xpi",
+          "update_hash": "sha256:HASH_OF_XPI_FILE"
+        }
+      ]
+    }
+  }
+}

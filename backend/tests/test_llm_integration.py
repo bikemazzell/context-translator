@@ -11,7 +11,7 @@ def llm_endpoint():
 
 @pytest.fixture
 def llm_model():
-    return "gemma-2-27b-it"
+    return "gemma-3-27b-it"
 
 
 @pytest.fixture

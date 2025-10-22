@@ -180,7 +180,7 @@ async def test_translate_http_error(client):
         )
         mock_post.return_value = mock_response
 
-        with pytest.raises(ValueError, match="LLM server error"):
+        with pytest.raises(ValueError, match="LLM server returned error"):
             await client.translate("Hello", "English", "German")
 
 
@@ -195,7 +195,7 @@ async def test_translate_invalid_response_format(client):
             raise_for_status=lambda: None
         )
 
-        with pytest.raises(ValueError, match="Invalid response from LLM"):
+        with pytest.raises(ValueError, match="LLM response format is invalid"):
             await client.translate("Hello", "English", "German")
 
 

@@ -11,9 +11,10 @@ SCHEMA_VERSION = 1
 
 
 class TranslationCache:
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str, max_size_mb: int = 100) -> None:
         self.db_path = db_path
         self.db: aiosqlite.Connection | None = None
+        self.max_size_mb = max_size_mb
 
     async def initialize(self) -> None:
         cache_dir = Path(self.db_path).parent
@@ -80,9 +81,21 @@ class TranslationCache:
                 "Consider clearing cache."
             )
 
-    def _generate_key(
+    def generate_key(
         self, text: str, source_lang: str, target_lang: str, context_text: str | None
     ) -> str:
+        """
+        Generate a cache key for the given translation parameters.
+
+        Args:
+            text: Text to translate
+            source_lang: Source language code
+            target_lang: Target language code
+            context_text: Optional context
+
+        Returns:
+            SHA256 hash as cache key
+        """
         context = context_text or ""
         key_string = f"{text}|{source_lang}|{target_lang}|{context}"
         return hashlib.sha256(key_string.encode()).hexdigest()
@@ -130,6 +143,8 @@ class TranslationCache:
 
         logger.debug(f"Cached translation for key: {key[:8]}...")
 
+        await self.enforce_size_limit()
+
     async def clear_expired(self, ttl_days: int) -> None:
         if self.db is None:
             msg = "Database not initialized"
@@ -146,11 +161,58 @@ class TranslationCache:
         if deleted_count > 0:
             logger.info(f"Deleted {deleted_count} expired cache entries")
 
+    async def clear(self) -> None:
+        """Clear all cached translations."""
+        if self.db is None:
+            msg = "Database not initialized"
+            raise RuntimeError(msg)
+
+        await self.db.execute("DELETE FROM translations")
+        await self.db.commit()
+        logger.info("Cache cleared")
+
     async def get_size(self) -> int:
         db_file = Path(self.db_path)
         if db_file.exists():
             return db_file.stat().st_size
         return 0
+
+    async def enforce_size_limit(self) -> None:
+        """Enforce cache size limit by removing oldest entries via LRU eviction."""
+        if self.db is None:
+            msg = "Database not initialized"
+            raise RuntimeError(msg)
+
+        size_bytes = await self.get_size()
+        size_mb = size_bytes / (1024 * 1024)
+
+        if size_mb > self.max_size_mb:
+            cursor = await self.db.execute("SELECT COUNT(*) FROM translations")
+            row = await cursor.fetchone()
+            total_count = row[0] if row else 0
+
+            if total_count == 0:
+                return
+
+            entries_to_delete = max(1, int(total_count * 0.2))
+
+            await self.db.execute(
+                """
+                DELETE FROM translations
+                WHERE hash IN (
+                    SELECT hash FROM translations
+                    ORDER BY timestamp ASC
+                    LIMIT ?
+                )
+                """,
+                (entries_to_delete,),
+            )
+            await self.db.commit()
+
+            logger.info(
+                f"Cache size limit enforced: deleted {entries_to_delete} oldest entries "
+                f"(size: {size_mb:.2f}MB > {self.max_size_mb}MB)"
+            )
 
     async def close(self) -> None:
         if self.db:

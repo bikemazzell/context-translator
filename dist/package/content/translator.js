@@ -1,5 +1,29 @@
-// Context Translator - Firefox Extension Content Script
-// Injects translation functionality into web pages
+/**
+ * Context Translator - Firefox Extension Content Script
+ *
+ * Injects translation functionality into web pages with:
+ * - Context-aware translation using local LLM
+ * - Inline and tooltip display modes
+ * - Dark mode support
+ * - Persistent settings and caching
+ *
+ * Architecture:
+ * - Configuration & State (lines 15-32)
+ * - Settings Management (lines 37-62)
+ * - Toolbar UI (lines 68-240)
+ * - Toast Notifications (lines 245-290)
+ * - Translation Display (lines 295-590)
+ * - Text Selection & Merging (lines 595-790)
+ * - Translation API (lines 795-900)
+ * - Event Handlers (lines 905-1100)
+ * - Initialization (lines 1105-1207)
+ *
+ * NOTE: This file is intentionally kept as a single module because:
+ * 1. Content scripts have module loading complexity
+ * 2. Needs to work reliably across arbitrary web pages
+ * 3. All functionality is tightly coupled to page DOM
+ * 4. Splitting would require complex build process
+ */
 
 (function() {
   'use strict';
@@ -29,6 +53,8 @@
   let languages = [];
   let toolbar = null;
   let inlineTranslations = [];
+  let initializationComplete = false;
+  let initPromise = null;
 
   // ============================================
   // SETTINGS MANAGEMENT
@@ -411,14 +437,6 @@
     // Check for adjacent translations BEFORE creating the display
     const adjacent = findAdjacentTranslations(wrapper);
 
-    console.log('[ContextTranslator] Adjacent translations found:', {
-      left: adjacent.left.length,
-      right: adjacent.right.length,
-      leftTexts: adjacent.left.map(t => t.text || t.translation),
-      rightTexts: adjacent.right.map(t => t.text || t.translation),
-      currentText: originalText
-    });
-
     if (adjacent.left.length > 0 || adjacent.right.length > 0) {
       // This translation should be merged with adjacent ones
       const currentTranslation = {
@@ -430,11 +448,8 @@
 
       const mergedData = mergeTranslations(currentTranslation, adjacent.left, adjacent.right);
       if (mergedData) {
-        console.log('[ContextTranslator] Merge successful:', mergedData.translation);
         // Merge successful
         return;
-      } else {
-        console.log('[ContextTranslator] Merge failed - falling back to standalone');
       }
       // If merge failed (e.g., different parents), fall through to create standalone
     }
@@ -458,7 +473,9 @@
       animation: ct-inline-in 0.2s ease-out !important;
       z-index: 2147483647 !important;
       white-space: nowrap !important;
-      display: block !important;
+      max-width: min(600px, 80vw) !important;
+      display: inline-block !important;
+      width: max-content !important;
       visibility: visible !important;
       opacity: 1 !important;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
@@ -517,7 +534,9 @@
       animation: ct-inline-in 0.2s ease-out !important;
       z-index: 2147483647 !important;
       white-space: nowrap !important;
-      display: block !important;
+      max-width: min(600px, 80vw) !important;
+      display: inline-block !important;
+      width: max-content !important;
       visibility: visible !important;
       opacity: 1 !important;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
@@ -594,7 +613,7 @@
           t.wrapper === current ||
           (t.mergedWrappers && t.mergedWrappers.includes(current))
         );
-        if (translation) {
+        if (translation && !adjacent.left.includes(translation)) {
           adjacent.left.unshift(translation);
           current = current.previousSibling;
           continue;
@@ -625,7 +644,7 @@
           t.wrapper === current ||
           (t.mergedWrappers && t.mergedWrappers.includes(current))
         );
-        if (translation) {
+        if (translation && !adjacent.right.includes(translation)) {
           adjacent.right.push(translation);
           current = current.nextSibling;
           continue;
@@ -725,10 +744,10 @@
       cursor: pointer !important;
       animation: ct-inline-in 0.2s ease-out !important;
       z-index: 2147483646 !important;
-      white-space: normal !important;
-      max-width: 80vw !important;
-      word-break: break-word !important;
-      display: block !important;
+      white-space: nowrap !important;
+      max-width: min(600px, 80vw) !important;
+      display: inline-block !important;
+      width: max-content !important;
       visibility: visible !important;
       opacity: 1 !important;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
@@ -912,6 +931,19 @@
   async function translate(text, node, x, y, wordRange) {
     if (text.length > 500) {
       return; // Silently ignore
+    }
+
+    // Check if the word is already wrapped (already translated)
+    if (wordRange) {
+      const container = wordRange.commonAncestorContainer;
+      const wrapper = container.nodeType === Node.ELEMENT_NODE
+        ? container.closest('.ct-word-wrapper')
+        : container.parentElement?.closest('.ct-word-wrapper');
+
+      if (wrapper) {
+        console.log('[ContextTranslator] Word already translated, skipping');
+        return;
+      }
     }
 
     // Check if inline translation already exists
@@ -1106,7 +1138,12 @@
   // ACTIVATION / DEACTIVATION
   // ============================================
 
-  function activate() {
+  async function activate() {
+    // Wait for initialization to complete
+    if (!initializationComplete && initPromise) {
+      await initPromise;
+    }
+
     isActive = true;
     settings.enabled = true;
     saveSettings();
@@ -1187,11 +1224,13 @@
       }
     } catch (error) {
       console.error('[ContextTranslator] Failed to load languages:', error);
-      languages = ['English', 'German', 'French', 'Spanish', 'Italian'];
     }
 
     // Inject styles
     injectStyles();
+
+    // Mark initialization as complete
+    initializationComplete = true;
 
     // Listen for toggle message from popup
     browser.runtime.onMessage.addListener((message) => {
@@ -1202,6 +1241,6 @@
   }
 
   // Start initialization
-  initialize();
+  initPromise = initialize();
 
 })();

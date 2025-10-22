@@ -87,7 +87,7 @@ class Config:
 
 
 def load_config(path: str = "config.yaml") -> Config:
-    config_path = Path(path)
+    config_path = Path(path).resolve()
 
     if not config_path.exists():
         return _get_default_config()
@@ -103,7 +103,7 @@ def load_config(path: str = "config.yaml") -> Config:
         return _get_default_config()
 
     try:
-        config = _parse_config(data)
+        config = _parse_config(data, config_dir=config_path.parent)
         config.validate()
         return config
     except Exception as e:
@@ -111,20 +111,38 @@ def load_config(path: str = "config.yaml") -> Config:
         raise ValueError(msg) from e
 
 
-def _parse_config(data: dict[str, Any]) -> Config:
-    server_data = data.get("server", {})
-    server = ServerConfig(
-        host=server_data.get("host", "localhost"), port=server_data.get("port", 8080)
-    )
+def _parse_config(data: dict[str, Any], config_dir: Path | None = None) -> Config:
+    # Defaults - single source of truth
+    DEFAULT_CACHE_BACKEND = "sqlite"
+    DEFAULT_CACHE_PATH = "./cache/translations.db"
+    DEFAULT_CACHE_TTL = 30
+    DEFAULT_CACHE_SIZE = 100
+    DEFAULT_MAX_TEXT_LENGTH = 500
+    DEFAULT_CONTEXT_WINDOW = 200
+    DEFAULT_LANGUAGES = ["English", "German", "French", "Spanish", "Italian"]
 
+    # Server config - let dataclass defaults handle it
+    server_data = data.get("server", {})
+    server = ServerConfig(**server_data)
+
+    # LLM config
     llm_data = data.get("llm", {})
-    primary_data = llm_data.get("primary", {})
-    primary = LLMProviderConfig(
-        provider=primary_data.get("provider", "lmstudio"),
-        endpoint=primary_data.get("endpoint", "http://localhost:1234/v1/chat/completions"),
-        model_name=primary_data.get("model_name", "gemma-2-27b-it"),
-        timeout=primary_data.get("timeout", 30),
-    )
+    if "primary" not in llm_data:
+        # No LLM config - use defaults
+        primary = LLMProviderConfig(
+            provider="lmstudio",
+            endpoint="http://localhost:1234/v1/chat/completions",
+            model_name="gemma-3-27b-it",
+            timeout=30,
+        )
+    else:
+        primary_data = llm_data["primary"]
+        primary = LLMProviderConfig(
+            provider=primary_data.get("provider", "lmstudio"),
+            endpoint=primary_data.get("endpoint", "http://localhost:1234/v1/chat/completions"),
+            model_name=primary_data.get("model_name", "gemma-3-27b-it"),
+            timeout=primary_data.get("timeout", 30),
+        )
 
     fallback = None
     if "fallback" in llm_data:
@@ -132,27 +150,35 @@ def _parse_config(data: dict[str, Any]) -> Config:
         fallback = LLMProviderConfig(
             provider=fallback_data.get("provider", "llama-server"),
             endpoint=fallback_data.get("endpoint", "http://localhost:8080/completion"),
-            model_name=fallback_data.get("model_name", "gemma-2-27b-it"),
+            model_name=fallback_data.get("model_name", "gemma-3-12b-it"),
             timeout=fallback_data.get("timeout", 30),
         )
 
     llm = LLMConfig(primary=primary, fallback=fallback)
 
+    # Cache config
     cache_data = data.get("cache", {})
+    cache_path = cache_data.get("path", DEFAULT_CACHE_PATH)
+
+    # Resolve relative paths to absolute paths relative to config file location
+    if config_dir is not None:
+        cache_path_obj = Path(cache_path)
+        if not cache_path_obj.is_absolute():
+            cache_path = str((config_dir / cache_path).resolve())
+
     cache = CacheConfig(
-        backend=cache_data.get("backend", "sqlite"),
-        path=cache_data.get("path", "./cache/translations.db"),
-        ttl_days=cache_data.get("ttl_days", 30),
-        max_size_mb=cache_data.get("max_size_mb", 100),
+        backend=cache_data.get("backend", DEFAULT_CACHE_BACKEND),
+        path=cache_path,
+        ttl_days=cache_data.get("ttl_days", DEFAULT_CACHE_TTL),
+        max_size_mb=cache_data.get("max_size_mb", DEFAULT_CACHE_SIZE),
     )
 
+    # Translation config
     translation_data = data.get("translation", {})
     translation = TranslationConfig(
-        max_text_length=translation_data.get("max_text_length", 500),
-        context_window_chars=translation_data.get("context_window_chars", 200),
-        supported_languages=translation_data.get(
-            "supported_languages", ["English", "German", "French", "Spanish", "Italian"]
-        ),
+        max_text_length=translation_data.get("max_text_length", DEFAULT_MAX_TEXT_LENGTH),
+        context_window_chars=translation_data.get("context_window_chars", DEFAULT_CONTEXT_WINDOW),
+        supported_languages=translation_data.get("supported_languages", DEFAULT_LANGUAGES.copy()),
     )
 
     return Config(server=server, llm=llm, cache=cache, translation=translation)
@@ -165,7 +191,7 @@ def _get_default_config() -> Config:
             primary=LLMProviderConfig(
                 provider="lmstudio",
                 endpoint="http://localhost:1234/v1/chat/completions",
-                model_name="gemma-2-27b-it",
+                model_name="gemma-3-27b-it",
                 timeout=30,
             )
         ),

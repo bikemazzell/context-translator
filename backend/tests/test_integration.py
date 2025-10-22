@@ -17,7 +17,7 @@ def mock_config():
 @pytest.fixture
 def mock_cache():
     cache = MagicMock(spec=TranslationCache)
-    cache._generate_key = MagicMock(return_value="test_key")
+    cache.generate_key = MagicMock(return_value="test_key")
     cache.get = AsyncMock(return_value=None)
     cache.set = AsyncMock(return_value=None)
     return cache
@@ -30,9 +30,9 @@ def mock_llm():
 
 @pytest.fixture
 def client(mock_config, mock_cache, mock_llm):
-    app.main.config = mock_config
-    app.main.cache = mock_cache
-    app.main.llm_client = mock_llm
+    app.main.app.state.config = mock_config
+    app.main.app.state.cache = mock_cache
+    app.main.app.state.llm_client = mock_llm
     return TestClient(app.main.app)
 
 
@@ -211,3 +211,15 @@ async def test_translate_endpoint_llm_connection_error(client, mock_llm):
     assert response.status_code == 503
     data = response.json()
     assert data["detail"]["error"] == "Translation server is not responding"
+
+
+@pytest.mark.asyncio
+async def test_cache_clear_endpoint(client, mock_cache):
+    mock_cache.clear = AsyncMock(return_value=None)
+
+    response = client.post("/cache/clear")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "cleared"
+    mock_cache.clear.assert_called_once()

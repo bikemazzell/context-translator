@@ -11,7 +11,7 @@ A Firefox extension for context-aware translation using local LLM models. Transl
 - **Keyboard Shortcuts:** Quick toggle with `Ctrl+Alt+C`
 - **Smart Caching:** Fast repeated lookups with SQLite cache
 - **Privacy-First:** All processing happens locally on your machine
-- **Native Messaging:** Direct communication between extension and backend (no HTTP, no CORS)
+- **Simple Architecture:** Direct HTTP communication from extension to local backend
 
 ## Architecture
 
@@ -22,11 +22,10 @@ A Firefox extension for context-aware translation using local LLM models. Transl
 │  │ Extension │  │
 │  └─────┬─────┘  │
 └────────┼────────┘
-         │ Native Messaging
-         │ (stdin/stdout)
+         │ HTTP (localhost:8080)
          ▼
 ┌─────────────────┐
-│ Python Backend  │
+│ FastAPI Backend │
 │  ┌───────────┐  │
 │  │   Cache   │  │
 │  │ (SQLite)  │  │
@@ -58,18 +57,23 @@ A Firefox extension for context-aware translation using local LLM models. Transl
 
 2. **Install Python dependencies:**
    ```bash
-   conda activate ai312  # or your Python 3.12 environment
-   pip install aiosqlite httpx
+   cd backend
+   pip install -r requirements.txt
    ```
 
-3. **Start your LLM server** (e.g., LMStudio on port 1234)
+3. **Start the backend:**
+   ```bash
+   ./scripts/start-backend.sh
+   ```
 
-4. **Package the extension:**
+4. **Start your LLM server** (e.g., LMStudio on port 1234)
+
+5. **Package the extension:**
    ```bash
    ./scripts/package-extension.sh
    ```
 
-5. **Install in Firefox:**
+6. **Install in Firefox:**
    - Set `xpinstall.signatures.required = false` in `about:config`
    - Open `about:addons` → gear icon → "Install Add-on From File"
    - Select `dist/context-translator.xpi`
@@ -106,16 +110,19 @@ For detailed installation instructions, see [docs/INSTALLATION.md](docs/INSTALLA
 
 ```
 context-translator/
+├── backend/                # FastAPI backend
+│   ├── app/                # Application code
+│   ├── tests/              # Backend tests
+│   └── requirements.txt    # Python dependencies
 ├── extension/              # Firefox extension
 │   ├── manifest.json
 │   ├── background/         # Background scripts
 │   ├── content/            # Content scripts (main translator)
 │   ├── popup/              # Extension popup UI
-│   ├── icons/              # Extension icons
-│   └── native-host/        # Python backend for native messaging
+│   └── icons/              # Extension icons
 ├── scripts/                # Build and utility scripts
 │   ├── package-extension.sh    # Package extension as .xpi
-│   └── start-backend.sh        # Start backend for testing
+│   └── start-backend.sh        # Start backend server
 ├── docs/                   # Documentation
 │   ├── INSTALLATION.md     # Installation guide
 │   ├── implementation.md   # Implementation plan
@@ -165,7 +172,7 @@ llm:
     provider: lmstudio
     endpoint: http://localhost:1234/v1/chat/completions
     timeout: 30
-    model_name: gemma-2-27b-it
+    model_name: gemma-3-27b-it
 
 cache:
   path: ./cache/translations.db
@@ -190,10 +197,10 @@ Settings persist across browser sessions automatically.
 - Ensure you're using Firefox Developer Edition or Nightly
 - Check `xpinstall.signatures.required` is set to `false` in `about:config`
 
-### Native messaging fails
-- Check native host manifest: `~/.mozilla/native-messaging-hosts/context_translator_host.json`
-- Verify Python script path is correct
-- Ensure script is executable: `chmod +x extension/native-host/context_translator_host.py`
+### Backend won't start
+- Ensure Python 3.12+ is installed
+- Install dependencies: `cd backend && pip install -r requirements.txt`
+- Check that port 8080 is not already in use
 
 ### Translations don't work
 - Ensure LLM server is running (test: `curl http://localhost:1234/v1/models`)
@@ -212,10 +219,10 @@ For more troubleshooting, see [docs/INSTALLATION.md](docs/INSTALLATION.md#troubl
 ## Privacy & Security
 
 - **100% Local:** All processing happens on your machine
-- **No External Requests:** Extension only communicates with local backend
+- **No External Requests:** Extension only communicates with localhost backend
 - **No Data Collection:** No analytics, tracking, or telemetry
 - **Cache Privacy:** Translations stored locally in SQLite database
-- **Native Messaging:** Secure communication channel between extension and backend
+- **Localhost Only:** Backend API restricted to localhost connections only
 
 ## Tested Models
 
@@ -248,9 +255,9 @@ Contributions welcome! Please:
 ## Acknowledgments
 
 - Built with Firefox WebExtensions API
-- Uses native messaging for secure backend communication
-- Python backend with asyncio and aiosqlite
+- FastAPI backend with asyncio and aiosqlite
 - Designed for local LLM inference
+- Localhost-only architecture for privacy and security
 
 ## Support
 
@@ -259,8 +266,3 @@ For issues, questions, or feature requests:
 - Check [INSTALLATION.md](docs/INSTALLATION.md) for troubleshooting
 - Review [implementation.md](docs/implementation.md) for technical details
 
----
-
-**Version:** 1.0.0
-**Status:** Active Development
-**Last Updated:** 2025-10-21

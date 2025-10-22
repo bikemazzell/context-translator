@@ -116,7 +116,7 @@ Translation:
 **Example API Request (OpenAI-compatible):**
 ```json
 {
-  "model": "gemma-2-27b-it",
+  "model": "gemma-3-27b-it",
   "messages": [
     {
       "role": "system",
@@ -320,12 +320,12 @@ llm:
   primary:
     provider: lmstudio  # or llama-server
     endpoint: http://localhost:1234/v1/chat/completions
-    model_name: gemma-2-27b-it
+    model_name: gemma-3-27b-it
     timeout: 30
   fallback:
     provider: llama-server
     endpoint: http://localhost:8080/completion
-    model_name: gemma-2-27b-it
+    model_name: gemma-3-12b-it
     timeout: 30
 
 cache:

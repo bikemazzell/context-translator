@@ -1,0 +1,133 @@
+name: Release Firefox Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install web-ext
+        run: npm install -g web-ext
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Verify manifest version matches tag
+        run: |
+          MANIFEST_VERSION=$(grep -oP '"version":\s*"\K[^"]+' extension/manifest.json)
+          TAG_VERSION="${{ steps.version.outputs.version }}"
+          if [ "$MANIFEST_VERSION" != "$TAG_VERSION" ]; then
+            echo "Error: manifest.json version ($MANIFEST_VERSION) doesn't match tag version ($TAG_VERSION)"
+            exit 1
+          fi
+
+      - name: Package extension
+        run: |
+          cd extension
+          zip -r ../context-translator-unsigned.xpi * \
+            -x "*.git*" \
+            -x "*node_modules*" \
+            -x "*.DS_Store"
+
+      - name: Sign extension with Mozilla
+        id: sign
+        run: |
+          web-ext sign \
+            --source-dir=extension \
+            --api-key="${{ secrets.AMO_API_KEY }}" \
+            --api-secret="${{ secrets.AMO_API_SECRET }}" \
+            --channel=unlisted \
+            --timeout=600000
+
+          # Find the signed .xpi file (web-ext creates it in web-ext-artifacts/)
+          SIGNED_XPI=$(ls web-ext-artifacts/*.xpi | head -n 1)
+          if [ -z "$SIGNED_XPI" ]; then
+            echo "Error: No signed .xpi file found"
+            exit 1
+          fi
+
+          # Rename to version-specific name
+          FINAL_NAME="context-translator-${{ steps.version.outputs.version }}.xpi"
+          mv "$SIGNED_XPI" "$FINAL_NAME"
+          echo "signed_xpi=$FINAL_NAME" >> $GITHUB_OUTPUT
+
+      - name: Calculate SHA256 hash
+        id: hash
+        run: |
+          HASH=$(sha256sum "${{ steps.sign.outputs.signed_xpi }}" | awk '{print $1}')
+          echo "sha256=$HASH" >> $GITHUB_OUTPUT
+          echo "Extension SHA256: $HASH"
+
+      - name: Update updates.json
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          HASH="${{ steps.hash.outputs.sha256 }}"
+          XPI_NAME="${{ steps.sign.outputs.signed_xpi }}"
+
+          # Create the new update entry
+          NEW_ENTRY=$(cat <<EOF
+          {
+            "version": "$VERSION",
+            "update_link": "https://github.com/${{ github.repository }}/releases/download/$TAG/$XPI_NAME",
+            "update_hash": "sha256:$HASH"
+          }
+          EOF
+          )
+
+          # Use jq to add the new entry to the updates array
+          jq --argjson entry "$NEW_ENTRY" \
+            '.addons["context-translator@bike-mazzell"].updates += [$entry]' \
+            updates.json > updates.json.tmp
+
+          mv updates.json.tmp updates.json
+
+      - name: Commit updated updates.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add updates.json
+          git commit -m "Update updates.json for version ${{ steps.version.outputs.version }}"
+          git push origin HEAD:main
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ steps.sign.outputs.signed_xpi }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release Summary
+        run: |
+          echo "✅ Release completed successfully!"
+          echo ""
+          echo "Version: ${{ steps.version.outputs.version }}"
+          echo "Signed XPI: ${{ steps.sign.outputs.signed_xpi }}"
+          echo "SHA256: ${{ steps.hash.outputs.sha256 }}"
+          echo ""
+          echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }}"
+          echo "Download URL: https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/${{ steps.sign.outputs.signed_xpi }}"

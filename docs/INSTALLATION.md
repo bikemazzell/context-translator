@@ -74,7 +74,7 @@ llm:
     provider: lmstudio
     endpoint: http://localhost:1234/v1/chat/completions
     timeout: 30
-    model_name: gemma-2-27b-it
+    model_name: gemma-3-27b-it
 
 cache:
   path: ./cache/translations.db
@@ -86,7 +86,7 @@ cache:
 
 **Option A: LMStudio**
 1. Download and install LMStudio
-2. Download a model (recommended: Gemma 2 9B or 27B, Llama 3.1 8B)
+2. Download a model (recommended: Gemma 3 12B or 27B)
 3. Start the local server (default port: 1234)
 4. Verify it's running at http://localhost:1234
 
