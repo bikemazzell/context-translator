@@ -1,6 +1,6 @@
 # Context Translator
 
-A Firefox extension for context-aware translation using local LLM servers. Translate words and phrases directly on web pages with intelligent context understanding—no backend required.
+A Firefox extension for context-aware translation using local LLM servers. Translate words and phrases directly on web pages with intelligent context understanding—no backend required. Also great for learning new languages.
 
 ## Overview
 
@@ -177,10 +177,8 @@ Works with any OpenAI-compatible API:
 
 ### Recommended Models
 
-- Gemma 2 9B/27B
-- Llama 3.1/3.2 8B
-- Qwen 2.5 7B
-- Mistral 7B
+- Gemma 3 12B/27B
+- Qwen 3 8B
 
 Larger models provide better translation quality, especially for context awareness.
 
@@ -209,7 +207,7 @@ Larger models provide better translation quality, especially for context awarene
 
 ## License
 
-MIT License - See LICENSE file for details
+MIT License
 
 ## Contributing
 
