@@ -1,154 +1,334 @@
 /**
- * Popup script for Context Translator
+ * Popup entry point
+ * Thin bootstrap that wires up PopupController with DOM bindings
  */
 
-// Screen elements
-const mainScreen = document.getElementById('main-screen');
-const settingsScreen = document.getElementById('settings-screen');
-const translatorToggle = document.getElementById('translator-toggle');
-const settingsBtn = document.getElementById('settings-btn');
-const backBtn = document.getElementById('back-btn');
+import { PopupController } from '../controllers/popup-controller.js';
+import { SettingsService } from '../services/settings-service.js';
+import { LanguageService } from '../services/language-service.js';
+import { StorageService } from '../services/storage-service.js';
+import { UIStateManager } from '../services/ui-state-manager.js';
 
-// Setting controls
-const settingSourceLang = document.getElementById('setting-source-lang');
-const settingTargetLang = document.getElementById('setting-target-lang');
-const settingDisplayMode = document.getElementById('setting-display-mode');
-const settingDarkMode = document.getElementById('setting-dark-mode');
-const settingEnableLogging = document.getElementById('setting-enable-logging');
-const settingTextColor = document.getElementById('setting-text-color');
-const settingBgColor = document.getElementById('setting-bg-color');
-const settingBgOpacity = document.getElementById('setting-bg-opacity');
-const settingLlmHost = document.getElementById('setting-llm-host');
-const settingLlmPort = document.getElementById('setting-llm-port');
-const settingUseRateLimit = document.getElementById('setting-use-rate-limit');
-const settingRateLimit = document.getElementById('setting-rate-limit');
-const settingUseCache = document.getElementById('setting-use-cache');
-const settingContextMode = document.getElementById('setting-context-mode');
-const settingContextChars = document.getElementById('setting-context-chars');
-const clearCacheBtn = document.getElementById('clear-cache-btn');
-const clearTranslationsBtn = document.getElementById('clear-translations-btn');
+// Get DOM elements
+const elements = {
+  // Screens
+  mainScreen: document.getElementById('main-screen'),
+  settingsScreen: document.getElementById('settings-screen'),
 
-// Language management elements
-const addLanguageForm = document.getElementById('add-language-form');
-const newLanguageInput = document.getElementById('new-language-input');
-const saveLanguageBtn = document.getElementById('save-language-btn');
-const cancelLanguageBtn = document.getElementById('cancel-language-btn');
-const languageList = document.getElementById('language-list');
+  // Main screen controls
+  translatorToggle: document.getElementById('translator-toggle'),
+  settingsBtn: document.getElementById('settings-btn'),
+  backBtn: document.getElementById('back-btn'),
 
-// Preview elements
-const textColorPreview = document.getElementById('text-color-preview');
-const bgColorPreview = document.getElementById('bg-color-preview');
-const bgOpacityValue = document.getElementById('bg-opacity-value');
+  // Setting controls
+  sourceLang: document.getElementById('setting-source-lang'),
+  targetLang: document.getElementById('setting-target-lang'),
+  displayMode: document.getElementById('setting-display-mode'),
+  darkMode: document.getElementById('setting-dark-mode'),
+  enableLogging: document.getElementById('setting-enable-logging'),
+  textColor: document.getElementById('setting-text-color'),
+  bgColor: document.getElementById('setting-bg-color'),
+  bgOpacity: document.getElementById('setting-bg-opacity'),
+  llmHost: document.getElementById('setting-llm-host'),
+  llmPort: document.getElementById('setting-llm-port'),
+  useRateLimit: document.getElementById('setting-use-rate-limit'),
+  rateLimit: document.getElementById('setting-rate-limit'),
+  useCache: document.getElementById('setting-use-cache'),
+  contextMode: document.getElementById('setting-context-mode'),
+  contextChars: document.getElementById('setting-context-chars'),
+  clearCacheBtn: document.getElementById('clear-cache-btn'),
+  clearTranslationsBtn: document.getElementById('clear-translations-btn'),
 
-let currentSettings = null;
-let languages = [];
-let pendingDeleteLanguage = null;
+  // Language management
+  addLanguageForm: document.getElementById('add-language-form'),
+  newLanguageInput: document.getElementById('new-language-input'),
+  saveLanguageBtn: document.getElementById('save-language-btn'),
+  cancelLanguageBtn: document.getElementById('cancel-language-btn'),
+  languageList: document.getElementById('language-list'),
+
+  // Preview elements
+  textColorPreview: document.getElementById('text-color-preview'),
+  bgColorPreview: document.getElementById('bg-color-preview'),
+  bgOpacityValue: document.getElementById('bg-opacity-value')
+};
+
+// Create messenger wrapper
+const messenger = {
+  sendMessage: (message) => browser.runtime.sendMessage(message),
+  queryTabs: (query) => browser.tabs.query(query),
+  sendTabMessage: (tabId, message) => browser.tabs.sendMessage(tabId, message)
+};
+
+// Create storage service
+const storageService = new StorageService(browser.storage);
+
+// Create settings service
+const settingsService = new SettingsService(storageService, messenger);
+
+// Create language service
+const languageService = new LanguageService(messenger);
+
+// Create UI state manager
+const uiStateManager = new UIStateManager();
+
+// Create popup controller
+const controller = new PopupController({
+  settingsService,
+  languageService,
+  uiStateManager,
+  storageService,
+  messenger
+});
 
 /**
- * Apply dark mode to popup based on settings
+ * Bind DOM events to controller
  */
-async function applyDarkMode() {
-  try {
-    const stored = await browser.storage.local.get('settings');
-    if (stored.settings && stored.settings.darkMode) {
-      const darkMode = stored.settings.darkMode;
-      const isDark = darkMode === 'dark' ||
-        (darkMode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+function bindEvents() {
+  // Screen navigation
+  elements.settingsBtn.addEventListener('click', () => {
+    controller.navigateToSettings();
+    updateScreens();
+  });
 
-      if (isDark) {
-        document.body.classList.add('dark-mode');
-      } else {
-        document.body.classList.remove('dark-mode');
-      }
+  elements.backBtn.addEventListener('click', () => {
+    controller.navigateToMain();
+    updateScreens();
+  });
+
+  // Translator toggle
+  elements.translatorToggle.addEventListener('change', async () => {
+    await controller.toggleTranslator();
+  });
+
+  // Setting change handlers
+  elements.sourceLang.addEventListener('change', () => {
+    controller.saveSetting('sourceLang', elements.sourceLang.value);
+  });
+
+  elements.targetLang.addEventListener('change', () => {
+    controller.saveSetting('targetLang', elements.targetLang.value);
+  });
+
+  elements.displayMode.addEventListener('change', () => {
+    controller.saveSetting('displayMode', elements.displayMode.value);
+  });
+
+  elements.darkMode.addEventListener('change', async () => {
+    const darkMode = elements.darkMode.checked ? 'dark' : 'light';
+    await controller.saveSetting('darkMode', darkMode);
+    applyDarkModeToPopup();
+  });
+
+  elements.enableLogging.addEventListener('change', () => {
+    controller.saveSetting('enableLogging', elements.enableLogging.checked);
+  });
+
+  elements.textColor.addEventListener('input', () => {
+    updateColorPreview(elements.textColorPreview, elements.textColor.value);
+    controller.saveSetting('translationTextColor', elements.textColor.value);
+  });
+
+  elements.bgColor.addEventListener('input', () => {
+    updateColorPreview(elements.bgColorPreview, elements.bgColor.value);
+    controller.saveSetting('translationBgColor', elements.bgColor.value);
+  });
+
+  elements.bgOpacity.addEventListener('input', () => {
+    const percent = parseInt(elements.bgOpacity.value);
+    elements.bgOpacityValue.textContent = `${percent}%`;
+    controller.saveSetting('translationBgOpacity', percent / 100);
+  });
+
+  elements.llmHost.addEventListener('change', () => {
+    const value = elements.llmHost.value.trim() || 'localhost';
+    controller.saveSetting('llmHost', value);
+  });
+
+  elements.llmPort.addEventListener('change', () => {
+    const port = parseInt(elements.llmPort.value);
+    if (!isNaN(port) && port > 0 && port <= 65535) {
+      controller.saveSetting('llmPort', port);
     }
-  } catch (error) {
-    console.error('[ContextTranslator] Failed to apply dark mode:', error);
+  });
+
+  elements.useRateLimit.addEventListener('change', () => {
+    controller.saveSetting('useRateLimit', elements.useRateLimit.checked);
+  });
+
+  elements.rateLimit.addEventListener('change', () => {
+    const limit = parseInt(elements.rateLimit.value, 10);
+    if (!isNaN(limit) && limit >= 1 && limit <= 120) {
+      controller.saveSetting('rateLimit', limit);
+    }
+  });
+
+  elements.useCache.addEventListener('change', () => {
+    controller.saveSetting('useCache', elements.useCache.checked);
+  });
+
+  elements.contextMode.addEventListener('change', () => {
+    controller.saveSetting('contextMode', elements.contextMode.checked);
+  });
+
+  elements.contextChars.addEventListener('change', () => {
+    const value = parseInt(elements.contextChars.value);
+    if (!isNaN(value) && value >= 0) {
+      controller.saveSetting('contextWindowChars', value);
+    }
+  });
+
+  // Color preview click handlers
+  elements.textColorPreview.addEventListener('click', () => {
+    elements.textColor.click();
+  });
+
+  elements.bgColorPreview.addEventListener('click', () => {
+    elements.bgColor.click();
+  });
+
+  // Cache and translations
+  elements.clearCacheBtn.addEventListener('click', async () => {
+    const originalText = elements.clearCacheBtn.textContent;
+    const result = await controller.clearCache();
+
+    // Update button text based on result
+    if (uiStateManager.getButtonText('clearCache')) {
+      elements.clearCacheBtn.textContent = uiStateManager.getButtonText('clearCache');
+    }
+    elements.clearCacheBtn.disabled = uiStateManager.isButtonDisabled('clearCache');
+
+    // Restore after delay if needed
+    setTimeout(() => {
+      elements.clearCacheBtn.textContent = originalText;
+      elements.clearCacheBtn.disabled = false;
+    }, 1600);
+  });
+
+  elements.clearTranslationsBtn.addEventListener('click', async () => {
+    await controller.clearTranslations();
+  });
+
+  // Language management
+  elements.saveLanguageBtn.addEventListener('click', async () => {
+    const languageName = elements.newLanguageInput.value.trim();
+    if (!languageName) return;
+
+    const result = await controller.addLanguage(languageName);
+
+    if (result.success) {
+      elements.newLanguageInput.value = '';
+      populateLanguages();
+    } else {
+      alert('Failed to add language: ' + result.error);
+    }
+  });
+
+  elements.cancelLanguageBtn.addEventListener('click', () => {
+    uiStateManager.hideForm();
+    elements.addLanguageForm.classList.add('hidden');
+    elements.newLanguageInput.value = '';
+  });
+
+  elements.newLanguageInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      elements.saveLanguageBtn.click();
+    }
+  });
+}
+
+/**
+ * Update screen visibility
+ */
+function updateScreens() {
+  if (uiStateManager.isMainScreen()) {
+    elements.mainScreen.classList.remove('hidden');
+    elements.settingsScreen.classList.add('hidden');
+  } else {
+    elements.mainScreen.classList.add('hidden');
+    elements.settingsScreen.classList.remove('hidden');
   }
 }
 
 /**
- * Load settings and languages from storage
+ * Populate settings UI
  */
-async function loadSettings() {
-  try {
-    const stored = await browser.storage.local.get('settings');
-    if (stored.settings) {
-      currentSettings = stored.settings;
-    } else {
-      // Use defaults
-      currentSettings = {
-        sourceLang: 'German',
-        targetLang: 'English',
-        darkMode: 'auto',
-        displayMode: 'inline',
-        enableLogging: true,
-        translationTextColor: '#ffffff',
-        translationBgColor: '#333333',
-        translationBgOpacity: 0.9,
-        llmHost: 'localhost',
-        llmPort: 1234,
-        useRateLimit: false,
-        rateLimit: 10,
-        useCache: true,
-        contextMode: false,
-        contextWindowChars: 200
-      };
-    }
+function populateSettings() {
+  const settings = controller.getCurrentSettings();
+  if (!settings) return;
 
-    // Load languages from background
-    try {
-      const response = await browser.runtime.sendMessage({ type: 'getLanguages' });
-      if (response.success) {
-        languages = response.data.languages;
-        populateLanguages();
-      }
-    } catch (error) {
-      console.error('[ContextTranslator] Failed to load languages:', error);
-    }
+  elements.sourceLang.value = settings.sourceLang || 'German';
+  elements.targetLang.value = settings.targetLang || 'English';
+  elements.displayMode.value = settings.displayMode || 'inline';
+  elements.darkMode.checked = settings.darkMode === 'dark';
+  elements.enableLogging.checked = settings.enableLogging !== false;
+  elements.textColor.value = settings.translationTextColor || '#ffffff';
+  elements.bgColor.value = settings.translationBgColor || '#333333';
 
-    populateSettings();
-  } catch (error) {
-    console.error('[ContextTranslator] Failed to load settings:', error);
-  }
+  updateColorPreview(elements.textColorPreview, settings.translationTextColor || '#ffffff');
+  updateColorPreview(elements.bgColorPreview, settings.translationBgColor || '#333333');
+
+  const opacityPercent = Math.round((settings.translationBgOpacity || 0.9) * 100);
+  elements.bgOpacity.value = opacityPercent;
+  elements.bgOpacityValue.textContent = `${opacityPercent}%`;
+
+  elements.llmHost.value = settings.llmHost || 'localhost';
+  elements.llmPort.value = settings.llmPort || 1234;
+  elements.useRateLimit.checked = settings.useRateLimit || false;
+  elements.rateLimit.value = settings.rateLimit || 10;
+  elements.useCache.checked = settings.useCache !== false;
+  elements.contextMode.checked = settings.contextMode || false;
+  elements.contextChars.value = settings.contextWindowChars || 200;
 }
 
 /**
  * Populate language dropdowns
  */
 function populateLanguages() {
+  const languages = controller.getLanguages();
+  const settings = controller.getCurrentSettings();
+
   if (languages.length === 0) return;
 
-  settingSourceLang.innerHTML = '';
-  settingTargetLang.innerHTML = '';
+  elements.sourceLang.innerHTML = '';
+  elements.targetLang.innerHTML = '';
 
   languages.forEach(lang => {
     const option1 = document.createElement('option');
     option1.value = lang;
     option1.textContent = lang;
-    settingSourceLang.appendChild(option1);
+    elements.sourceLang.appendChild(option1);
 
     const option2 = document.createElement('option');
     option2.value = lang;
     option2.textContent = lang;
-    settingTargetLang.appendChild(option2);
+    elements.targetLang.appendChild(option2);
   });
+
+  if (settings) {
+    elements.sourceLang.value = settings.sourceLang || languages[0];
+    elements.targetLang.value = settings.targetLang || languages[1] || languages[0];
+  }
 
   renderLanguageList();
 }
 
 /**
- * Render language list with add and delete buttons
+ * Render language list
  */
 function renderLanguageList() {
-  languageList.innerHTML = '';
-  pendingDeleteLanguage = null;
+  const languages = controller.getLanguages();
+  elements.languageList.innerHTML = '';
 
-  // Add the "<Add Language>" button as the first item
+  // Add "Add Language" button
   const addItem = document.createElement('div');
   addItem.className = 'language-item add-language';
   addItem.textContent = '< Add Language >';
-  addItem.addEventListener('click', showAddLanguageForm);
-  languageList.appendChild(addItem);
+  addItem.addEventListener('click', () => {
+    uiStateManager.showForm();
+    elements.addLanguageForm.classList.remove('hidden');
+    elements.newLanguageInput.focus();
+  });
+  elements.languageList.appendChild(addItem);
 
   // Add language items with delete buttons
   languages.forEach(lang => {
@@ -163,443 +343,79 @@ function renderLanguageList() {
     deleteBtn.className = 'icon-btn delete';
     deleteBtn.title = `Delete ${lang}`;
     deleteBtn.textContent = '×';
-    deleteBtn.addEventListener('click', (e) => {
+    deleteBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      handleDeleteLanguage(lang, item);
+      await handleDeleteLanguage(lang, item, langName);
     });
 
     item.appendChild(langName);
     item.appendChild(deleteBtn);
-    languageList.appendChild(item);
+    elements.languageList.appendChild(item);
   });
 }
 
 /**
- * Show add language form
+ * Handle delete language with confirmation
  */
-function showAddLanguageForm() {
-  addLanguageForm.classList.remove('hidden');
-  newLanguageInput.value = '';
-  newLanguageInput.focus();
-}
-
-/**
- * Hide add language form
- */
-function hideAddLanguageForm() {
-  addLanguageForm.classList.add('hidden');
-  newLanguageInput.value = '';
-}
-
-/**
- * Handle add language
- */
-async function handleAddLanguage() {
-  const languageName = newLanguageInput.value.trim();
-
-  if (!languageName) {
-    return;
-  }
-
-  try {
-    saveLanguageBtn.disabled = true;
-    const response = await browser.runtime.sendMessage({
-      type: 'addLanguage',
-      data: { language: languageName }
-    });
-
-    if (response.success) {
-      languages = response.data.languages;
-      populateLanguages();
-
-      // Restore selected languages in dropdowns
-      if (currentSettings) {
-        settingSourceLang.value = currentSettings.sourceLang || languages[0];
-        settingTargetLang.value = currentSettings.targetLang || languages[1] || languages[0];
-      }
-
-      hideAddLanguageForm();
-    } else {
-      alert('Failed to add language: ' + response.error);
-    }
-  } catch (error) {
-    console.error('[ContextTranslator] Failed to add language:', error);
-    alert('Failed to add language: ' + error.message);
-  } finally {
-    saveLanguageBtn.disabled = false;
-  }
-}
-
-/**
- * Handle delete language with inline confirmation
- */
-async function handleDeleteLanguage(languageName, itemElement) {
-  // First click: show confirmation
-  if (pendingDeleteLanguage !== languageName) {
-    // Reset any previous pending delete
-    if (pendingDeleteLanguage) {
-      renderLanguageList();
+async function handleDeleteLanguage(languageName, itemElement, langNameElement) {
+  if (!uiStateManager.isPendingDelete(languageName)) {
+    // First click: show confirmation
+    if (uiStateManager.getPendingDelete()) {
+      renderLanguageList(); // Reset any previous pending
     }
 
-    // Mark this language for deletion
-    pendingDeleteLanguage = languageName;
+    uiStateManager.setPendingDelete(languageName);
     itemElement.classList.add('confirm-delete');
-
-    const langName = itemElement.querySelector('.language-name');
-    langName.textContent = 'CONFIRM';
-
+    langNameElement.textContent = 'CONFIRM';
     return;
   }
 
   // Second click: actually delete
-  try {
-    const response = await browser.runtime.sendMessage({
-      type: 'removeLanguage',
-      data: { language: languageName }
-    });
+  const result = await controller.removeLanguage(languageName);
 
-    if (response.success) {
-      const previousSource = currentSettings.sourceLang;
-      const previousTarget = currentSettings.targetLang;
-
-      languages = response.data.languages;
-      populateLanguages();
-
-      // Restore selected languages, or use first available if deleted
-      if (languages.includes(previousSource)) {
-        settingSourceLang.value = previousSource;
-      } else {
-        settingSourceLang.value = languages[0];
-        saveSetting('sourceLang', languages[0]);
-      }
-
-      if (languages.includes(previousTarget)) {
-        settingTargetLang.value = previousTarget;
-      } else {
-        settingTargetLang.value = languages[1] || languages[0];
-        saveSetting('targetLang', languages[1] || languages[0]);
-      }
-    } else {
-      alert('Failed to delete language: ' + response.error);
-      renderLanguageList();
-    }
-  } catch (error) {
-    console.error('[ContextTranslator] Failed to delete language:', error);
-    alert('Failed to delete language: ' + error.message);
+  if (result.success) {
+    uiStateManager.clearPendingDelete();
+    populateLanguages();
+  } else {
+    alert('Failed to delete language: ' + result.error);
     renderLanguageList();
   }
 }
 
 /**
- * Populate settings controls with current values
- */
-function populateSettings() {
-  if (!currentSettings) return;
-
-  // Languages
-  settingSourceLang.value = currentSettings.sourceLang || 'German';
-  settingTargetLang.value = currentSettings.targetLang || 'English';
-
-  // Display mode dropdown
-  settingDisplayMode.value = currentSettings.displayMode || 'inline';
-
-  // Dark mode toggle (convert 'dark'/'light'/'auto' to boolean)
-  settingDarkMode.checked = currentSettings.darkMode === 'dark';
-
-  // Logging toggle
-  settingEnableLogging.checked = currentSettings.enableLogging !== false;
-
-  // Color pickers
-  settingTextColor.value = currentSettings.translationTextColor || '#ffffff';
-  settingBgColor.value = currentSettings.translationBgColor || '#333333';
-  updateColorPreview(textColorPreview, currentSettings.translationTextColor || '#ffffff');
-  updateColorPreview(bgColorPreview, currentSettings.translationBgColor || '#333333');
-
-  // Background opacity (convert 0-1 to 0-100)
-  const opacityPercent = Math.round((currentSettings.translationBgOpacity || 0.9) * 100);
-  settingBgOpacity.value = opacityPercent;
-  bgOpacityValue.textContent = `${opacityPercent}%`;
-
-  // LLM settings
-  settingLlmHost.value = currentSettings.llmHost || 'localhost';
-  settingLlmPort.value = currentSettings.llmPort || 1234;
-
-  // Rate limiting settings
-  settingUseRateLimit.checked = currentSettings.useRateLimit || false;
-  settingRateLimit.value = currentSettings.rateLimit || 10;
-
-  // Cache settings
-  settingUseCache.checked = currentSettings.useCache !== false;
-
-  // Context settings
-  settingContextMode.checked = currentSettings.contextMode || false;
-  settingContextChars.value = currentSettings.contextWindowChars || 200;
-}
-
-/**
- * Update color preview square
+ * Update color preview
  */
 function updateColorPreview(element, color) {
   element.style.backgroundColor = color;
 }
 
 /**
- * Save a setting
+ * Apply dark mode to popup
  */
-async function saveSetting(key, value) {
-  try {
-    currentSettings[key] = value;
-    await browser.storage.local.set({ settings: currentSettings });
+function applyDarkModeToPopup() {
+  const settings = controller.getCurrentSettings();
+  if (!settings) return;
 
-    // Apply dark mode changes immediately to popup
-    if (key === 'darkMode') {
-      await applyDarkMode();
-    }
-
-    // Notify content script if it's active
-    try {
-      const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-      if (tabs.length > 0) {
-        await browser.tabs.sendMessage(tabs[0].id, {
-          action: 'settingChanged',
-          key: key,
-          value: value
-        });
-      }
-    } catch (error) {
-      // Content script might not be loaded, that's ok
-    }
-  } catch (error) {
-    console.error('[ContextTranslator] Failed to save setting:', error);
+  const isDark = settingsService.applyDarkMode(settings.darkMode);
+  if (isDark) {
+    document.body.classList.add('dark-mode');
+  } else {
+    document.body.classList.remove('dark-mode');
   }
 }
-
-/**
- * Check if translator is active
- */
-async function checkTranslatorStatus() {
-  try {
-    const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-    if (tabs.length > 0) {
-      const response = await browser.tabs.sendMessage(tabs[0].id, { action: 'getStatus' });
-      if (response && response.isActive !== undefined) {
-        translatorToggle.checked = response.isActive;
-      }
-    }
-  } catch (error) {
-    // Content script not loaded or page doesn't support it
-    translatorToggle.checked = false;
-  }
-}
-
-/**
- * Toggle translator (without showing settings screen)
- */
-translatorToggle.addEventListener('change', async () => {
-  try {
-    const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-    if (tabs.length > 0) {
-      await browser.tabs.sendMessage(tabs[0].id, { action: 'toggle' });
-    }
-  } catch (error) {
-    console.error('[ContextTranslator] Failed to toggle:', error);
-    // Revert toggle state
-    translatorToggle.checked = !translatorToggle.checked;
-  }
-});
-
-/**
- * Show settings screen
- */
-settingsBtn.addEventListener('click', () => {
-  mainScreen.classList.add('hidden');
-  settingsScreen.classList.remove('hidden');
-});
-
-/**
- * Show main screen
- */
-backBtn.addEventListener('click', () => {
-  settingsScreen.classList.add('hidden');
-  mainScreen.classList.remove('hidden');
-});
-
-/**
- * Language management event listeners
- */
-
-// Save language button
-saveLanguageBtn.addEventListener('click', handleAddLanguage);
-
-// Cancel language button
-cancelLanguageBtn.addEventListener('click', hideAddLanguageForm);
-
-// Allow Enter key to save language
-newLanguageInput.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') {
-    handleAddLanguage();
-  }
-});
-
-/**
- * Settings event listeners
- */
-
-// Source language
-settingSourceLang.addEventListener('change', () => {
-  saveSetting('sourceLang', settingSourceLang.value);
-});
-
-// Target language
-settingTargetLang.addEventListener('change', () => {
-  saveSetting('targetLang', settingTargetLang.value);
-});
-
-// Display mode dropdown
-settingDisplayMode.addEventListener('change', () => {
-  saveSetting('displayMode', settingDisplayMode.value);
-});
-
-// Dark mode toggle
-settingDarkMode.addEventListener('change', () => {
-  const darkMode = settingDarkMode.checked ? 'dark' : 'light';
-  saveSetting('darkMode', darkMode);
-});
-
-// Enable logging toggle
-settingEnableLogging.addEventListener('change', () => {
-  saveSetting('enableLogging', settingEnableLogging.checked);
-});
-
-// Text color picker
-settingTextColor.addEventListener('input', () => {
-  updateColorPreview(textColorPreview, settingTextColor.value);
-  saveSetting('translationTextColor', settingTextColor.value);
-});
-
-// Background color picker
-settingBgColor.addEventListener('input', () => {
-  updateColorPreview(bgColorPreview, settingBgColor.value);
-  saveSetting('translationBgColor', settingBgColor.value);
-});
-
-// Background opacity slider
-settingBgOpacity.addEventListener('input', () => {
-  const percent = parseInt(settingBgOpacity.value);
-  bgOpacityValue.textContent = `${percent}%`;
-  const opacity = percent / 100;
-  saveSetting('translationBgOpacity', opacity);
-});
-
-// LLM host
-settingLlmHost.addEventListener('change', () => {
-  const value = settingLlmHost.value.trim() || 'localhost';
-  saveSetting('llmHost', value);
-});
-
-// LLM port
-settingLlmPort.addEventListener('change', () => {
-  const port = parseInt(settingLlmPort.value);
-  if (!isNaN(port) && port > 0 && port <= 65535) {
-    saveSetting('llmPort', port);
-  }
-});
-
-// Use rate limit toggle
-settingUseRateLimit.addEventListener('change', () => {
-  saveSetting('useRateLimit', settingUseRateLimit.checked);
-});
-
-// Rate limit number
-settingRateLimit.addEventListener('change', () => {
-  const limit = parseInt(settingRateLimit.value, 10);
-  if (!isNaN(limit) && limit >= 1 && limit <= 120) {
-    saveSetting('rateLimit', limit);
-  }
-});
-
-// Use cache toggle
-settingUseCache.addEventListener('change', () => {
-  saveSetting('useCache', settingUseCache.checked);
-});
-
-// Clear cache button
-clearCacheBtn.addEventListener('click', async () => {
-  console.log('[ContextTranslator] Clear cache button clicked');
-
-  // Disable button during operation
-  const originalText = clearCacheBtn.textContent;
-  clearCacheBtn.disabled = true;
-  clearCacheBtn.textContent = 'Clearing...';
-
-  try {
-    const response = await browser.runtime.sendMessage({ type: 'clearCache' });
-    if (response.success) {
-      console.log('[ContextTranslator] Cache cleared successfully');
-      clearCacheBtn.textContent = 'Cleared!';
-      setTimeout(() => {
-        clearCacheBtn.textContent = originalText;
-        clearCacheBtn.disabled = false;
-      }, 1500);
-    } else {
-      console.error('[ContextTranslator] Cache clear failed:', response.error);
-      clearCacheBtn.textContent = 'Failed';
-      setTimeout(() => {
-        clearCacheBtn.textContent = originalText;
-        clearCacheBtn.disabled = false;
-      }, 1500);
-    }
-  } catch (error) {
-    console.error('[ContextTranslator] Failed to clear cache:', error);
-    clearCacheBtn.textContent = 'Error';
-    setTimeout(() => {
-      clearCacheBtn.textContent = originalText;
-      clearCacheBtn.disabled = false;
-    }, 1500);
-  }
-});
-
-// Clear translations button
-clearTranslationsBtn.addEventListener('click', async () => {
-  try {
-    const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-    if (tabs.length > 0) {
-      await browser.tabs.sendMessage(tabs[0].id, { action: 'clearTranslations' });
-    }
-  } catch (error) {
-    console.error('[ContextTranslator] Failed to clear translations:', error);
-  }
-});
-
-// Context mode toggle
-settingContextMode.addEventListener('change', () => {
-  saveSetting('contextMode', settingContextMode.checked);
-});
-
-// Context window chars
-settingContextChars.addEventListener('change', () => {
-  const value = parseInt(settingContextChars.value);
-  if (!isNaN(value) && value >= 0) {
-    saveSetting('contextWindowChars', value);
-  }
-});
-
-// Color preview click handlers (trigger color picker)
-textColorPreview.addEventListener('click', () => {
-  settingTextColor.click();
-});
-
-bgColorPreview.addEventListener('click', () => {
-  settingBgColor.click();
-});
 
 /**
  * Initialize popup
  */
-async function initialize() {
-  await applyDarkMode();
-  await loadSettings();
-  await checkTranslatorStatus();
+async function initPopup() {
+  await controller.initialize();
+
+  applyDarkModeToPopup();
+  populateSettings();
+  populateLanguages();
+
+  bindEvents();
 }
 
-initialize();
+// Start popup
+initPopup();

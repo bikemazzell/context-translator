@@ -4,43 +4,54 @@
 
 import { extractWordAtPoint, extractContext, extractContextFromRange } from './text-extraction.js';
 import { settingsManager } from '../../shared/settings-manager.js';
+import {
+  shouldIgnoreTarget,
+  isWordWrapper,
+  extractSelectionData,
+  extractPointData
+} from '../../core/click-handler-utils.js';
 
 let clickHandler = null;
 let onTranslateCallback = null;
 let isActive = false;
+let attachedDocument = null;
 
 /**
  * Attach click handler
  * @param {Function} onTranslateRequest - Callback for translation requests
+ * @param {Object} dependencies - Optional dependencies for testing
  */
-export function attachClickHandler(onTranslateRequest) {
+export function attachClickHandler(onTranslateRequest, dependencies = {}) {
   if (clickHandler) {
     detachClickHandler();
   }
 
+  // Use injected dependencies or defaults
+  const {
+    settingsManager: settings = settingsManager,
+    getSelection = () => window.getSelection(),
+    extractWordAtPointFn = extractWordAtPoint,
+    extractContextFn = extractContext,
+    extractContextFromRangeFn = extractContextFromRange,
+    document: doc = document
+  } = dependencies;
+
   onTranslateCallback = onTranslateRequest;
   isActive = true;
+  attachedDocument = doc;
 
   clickHandler = async (event) => {
     if (!isActive) return;
 
     const target = event.target;
 
-    if (target.closest('#ct-toolbar')) {
-      return;
-    }
-
-    if (target.closest('.ct-inline-translation')) {
-      return;
-    }
-
-    if (target.closest('#ct-translation-popup')) {
-      return;
-    }
-
-    if (target.closest('.ct-word-wrapper')) {
-      event.preventDefault();
-      event.stopPropagation();
+    // Check if target should be ignored
+    if (shouldIgnoreTarget(target)) {
+      // Word wrappers need special handling
+      if (isWordWrapper(target)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
       return;
     }
 
@@ -48,42 +59,71 @@ export function attachClickHandler(onTranslateRequest) {
     event.stopPropagation();
 
     // Get context window size from user settings
-    const contextWindowSize = settingsManager.get('contextWindowChars') || 200;
+    const contextWindowSize = settings.get('contextWindowChars') || 200;
 
-    const selection = window.getSelection();
-    const selectedText = selection.toString().trim();
+    // Try to extract from selection first
+    const selection = getSelection();
+    const selectionData = extractSelectionData(
+      selection,
+      extractContextFromRangeFn,
+      contextWindowSize
+    );
 
-    if (selectedText && selectedText.length > 0) {
-      const range = selection.getRangeAt(0);
-      const context = extractContextFromRange(range, contextWindowSize);
-
+    if (selectionData) {
       if (onTranslateCallback) {
-        await onTranslateCallback(selectedText, context, range, event.clientX, event.clientY);
+        try {
+          await onTranslateCallback(
+            selectionData.text,
+            selectionData.context,
+            selectionData.range,
+            event.clientX,
+            event.clientY
+          );
+        } catch (error) {
+          // Callback errors are handled by the callback itself
+          // Don't propagate to prevent unhandled promise rejections
+        }
       }
       return;
     }
 
-    const result = extractWordAtPoint(event.clientX, event.clientY);
-    if (result && result.text) {
-      const context = extractContext(result.node, contextWindowSize);
+    // Fall back to extracting word at point
+    const pointData = extractPointData(
+      event.clientX,
+      event.clientY,
+      extractWordAtPointFn,
+      extractContextFn,
+      contextWindowSize
+    );
 
-      if (onTranslateCallback) {
-        await onTranslateCallback(result.text, context, result.range, event.clientX, event.clientY);
+    if (pointData && onTranslateCallback) {
+      try {
+        await onTranslateCallback(
+          pointData.text,
+          pointData.context,
+          pointData.range,
+          event.clientX,
+          event.clientY
+        );
+      } catch (error) {
+        // Callback errors are handled by the callback itself
+        // Don't propagate to prevent unhandled promise rejections
       }
     }
   };
 
-  document.addEventListener('click', clickHandler, true);
+  doc.addEventListener('click', clickHandler, true);
 }
 
 /**
  * Detach click handler
  */
 export function detachClickHandler() {
-  if (clickHandler) {
-    document.removeEventListener('click', clickHandler, true);
+  if (clickHandler && attachedDocument) {
+    attachedDocument.removeEventListener('click', clickHandler, true);
     clickHandler = null;
   }
   isActive = false;
   onTranslateCallback = null;
+  attachedDocument = null;
 }

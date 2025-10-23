@@ -3,24 +3,24 @@
  */
 
 import { jest } from '@jest/globals';
+import { initContentScript } from '../content/loader.js';
 
 describe('Loader', () => {
   let originalBrowser;
-  let mockImport;
+  let mockBrowser;
 
   beforeEach(() => {
     // Save original browser object
     originalBrowser = global.browser;
 
-    // Mock dynamic import
-    mockImport = jest.fn(() => Promise.resolve({}));
-
     // Mock browser.runtime.getURL
-    global.browser = {
+    mockBrowser = {
       runtime: {
         getURL: jest.fn((path) => `moz-extension://test-id/${path}`)
       }
     };
+
+    global.browser = mockBrowser;
 
     // Mock console.error
     jest.spyOn(console, 'error').mockImplementation();
@@ -29,6 +29,46 @@ describe('Loader', () => {
   afterEach(() => {
     global.browser = originalBrowser;
     jest.restoreAllMocks();
+  });
+
+  describe('initContentScript', () => {
+    it('should call browser.runtime.getURL with correct path', async () => {
+      try {
+        await initContentScript(mockBrowser);
+      } catch (error) {
+        // Expected to fail due to dynamic import
+      }
+
+      expect(mockBrowser.runtime.getURL).toHaveBeenCalledWith('content/main.js');
+    });
+
+    it('should use default browser when no argument provided', async () => {
+      try {
+        await initContentScript();
+      } catch (error) {
+        // Expected to fail due to dynamic import
+      }
+
+      expect(mockBrowser.runtime.getURL).toHaveBeenCalledWith('content/main.js');
+    });
+
+    it('should log error and throw when import fails', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockClear();
+
+      await expect(initContentScript(mockBrowser)).rejects.toThrow();
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '[ContextTranslator] Failed to load content script:',
+        expect.objectContaining({
+          message: expect.stringContaining('Cannot find module')
+        })
+      );
+    });
+
+    it('should export initContentScript function', () => {
+      expect(typeof initContentScript).toBe('function');
+      expect(initContentScript.constructor.name).toBe('AsyncFunction');
+    });
   });
 
   describe('Module loading behavior', () => {

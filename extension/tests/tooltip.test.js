@@ -165,6 +165,24 @@ describe('Tooltip Translation Display', () => {
       const tooltip = document.getElementById('ct-translation-popup');
       expect(tooltip).toBeTruthy();
     });
+
+    it('should apply dark mode class when darkMode is dark', () => {
+      showTooltip('Dark mode test', 100, 200, 'dark');
+
+      const tooltip = document.getElementById('ct-translation-popup');
+      expect(tooltip.classList.contains('ct-dark-mode')).toBe(true);
+    });
+
+    it('should not apply dark mode class when custom styling is provided', () => {
+      const styleSettings = {
+        translationBgColor: '#ff5733'
+      };
+
+      showTooltip('Custom styling overrides dark mode', 100, 200, 'dark', styleSettings);
+
+      const tooltip = document.getElementById('ct-translation-popup');
+      expect(tooltip.classList.contains('ct-dark-mode')).toBe(false);
+    });
   });
 
   describe('Event listeners', () => {

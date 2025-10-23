@@ -4,6 +4,14 @@
 
 import { CONFIG } from '../../shared/config.js';
 import { isDarkMode } from '../../shared/utils.js';
+import {
+  applyCustomStyling,
+  flattenTranslation,
+  flattenTranslations,
+  buildMergedTranslationText,
+  haveSameParent,
+  isWithinMergeLimit
+} from '../../core/inline-translation-utils.js';
 
 const MAX_ACTIVE_TRANSLATIONS = 100;
 const inlineTranslations = [];
@@ -86,38 +94,6 @@ export function showInlineTranslation(translation, wordRange, originalText = '',
 
   wrapper.appendChild(inline);
   inlineTranslations.push(inlineData);
-}
-
-/**
- * Apply custom styling to translation element
- * @param {HTMLElement} element - Translation element
- * @param {Object} styleSettings - Style settings
- */
-function applyCustomStyling(element, styleSettings) {
-  if (styleSettings.translationBgColor) {
-    const rgb = hexToRgb(styleSettings.translationBgColor);
-    const opacity = styleSettings.translationBgOpacity !== undefined ? styleSettings.translationBgOpacity : 0.9;
-    element.style.setProperty('background', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`, 'important');
-  }
-  if (styleSettings.translationTextColor) {
-    element.style.setProperty('color', styleSettings.translationTextColor, 'important');
-  }
-  // Remove border for custom styling to make it cleaner
-  element.style.setProperty('border', 'none', 'important');
-}
-
-/**
- * Convert hex color to RGB
- * @param {string} hex - Hex color code
- * @returns {Object} RGB values
- */
-function hexToRgb(hex) {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result ? {
-    r: parseInt(result[1], 16),
-    g: parseInt(result[2], 16),
-    b: parseInt(result[3], 16)
-  } : { r: 51, g: 51, b: 51 }; // fallback to #333333
 }
 
 /**
@@ -297,32 +273,18 @@ export function findAdjacentTranslations(newWrapper) {
  * @returns {object|null}
  */
 export function mergeTranslations(centerTranslation, leftTranslations, rightTranslations, darkMode = 'auto', styleSettings = null) {
-  const flattenTranslation = (t) => {
-    if (t.merged && t.components) {
-      return t.components;
-    }
-    return [t];
-  };
-
-  const leftFlat = leftTranslations.flatMap(flattenTranslation);
+  const leftFlat = flattenTranslations(leftTranslations);
   const centerFlat = flattenTranslation(centerTranslation);
-  const rightFlat = rightTranslations.flatMap(flattenTranslation);
+  const rightFlat = flattenTranslations(rightTranslations);
 
   const allTranslations = [...leftFlat, ...centerFlat, ...rightFlat];
 
-  if (allTranslations.length > CONFIG.ui.maxMergeWords) {
+  if (!isWithinMergeLimit(allTranslations.length, CONFIG.ui.maxMergeWords)) {
     return null;
   }
 
-  if (allTranslations.length > 1) {
-    const firstParent = allTranslations[0].wrapper.parentElement;
-    const sameParent = allTranslations.every(t =>
-      t.wrapper && t.wrapper.parentElement === firstParent
-    );
-
-    if (!sameParent) {
-      return null;
-    }
+  if (!haveSameParent(allTranslations)) {
+    return null;
   }
 
   [centerTranslation, ...leftTranslations, ...rightTranslations].forEach(t => {
@@ -335,9 +297,7 @@ export function mergeTranslations(centerTranslation, leftTranslations, rightTran
     }
   });
 
-  const mergedText = allTranslations
-    .map(t => t.translation)
-    .join(' ');
+  const mergedText = buildMergedTranslationText(allTranslations);
 
   const firstWrapper = allTranslations[0].wrapper;
 

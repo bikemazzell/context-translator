@@ -314,4 +314,336 @@ describe('Click Handler', () => {
       expect(() => detachClickHandler()).not.toThrow();
     });
   });
+
+  describe('Click event handling', () => {
+    let mockDependencies;
+    let clickEvent;
+
+    beforeEach(() => {
+      document.body.innerHTML = '<div id="content">Test content</div>';
+
+      mockDependencies = {
+        settingsManager: {
+          get: jest.fn().mockReturnValue(200)
+        },
+        getSelection: jest.fn(),
+        extractWordAtPointFn: jest.fn(),
+        extractContextFn: jest.fn(),
+        extractContextFromRangeFn: jest.fn(),
+        document: document
+      };
+
+      clickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 100,
+        clientY: 200
+      });
+      Object.defineProperty(clickEvent, 'target', {
+        value: document.getElementById('content'),
+        writable: false
+      });
+    });
+
+    afterEach(() => {
+      detachClickHandler();
+    });
+
+    it('should prevent default and stop propagation for normal clicks', () => {
+      const callback = jest.fn();
+      mockDependencies.getSelection.mockReturnValue({
+        toString: () => '',
+        rangeCount: 0
+      });
+      mockDependencies.extractWordAtPointFn.mockReturnValue(null);
+
+      attachClickHandler(callback, mockDependencies);
+
+      const preventDefaultSpy = jest.spyOn(clickEvent, 'preventDefault');
+      const stopPropagationSpy = jest.spyOn(clickEvent, 'stopPropagation');
+
+      document.getElementById('content').dispatchEvent(clickEvent);
+
+      expect(preventDefaultSpy).toHaveBeenCalled();
+      expect(stopPropagationSpy).toHaveBeenCalled();
+
+      preventDefaultSpy.mockRestore();
+      stopPropagationSpy.mockRestore();
+    });
+
+    it('should not handle clicks on toolbar', () => {
+      document.body.innerHTML = '<div id="ct-toolbar"><button id="btn">Test</button></div>';
+      const button = document.getElementById('btn');
+      const callback = jest.fn();
+
+      const toolbarClickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true
+      });
+      Object.defineProperty(toolbarClickEvent, 'target', {
+        value: button,
+        writable: false
+      });
+
+      attachClickHandler(callback, mockDependencies);
+      button.dispatchEvent(toolbarClickEvent);
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('should not handle clicks on inline translations', () => {
+      document.body.innerHTML = '<div class="ct-inline-translation"><span id="span">Test</span></div>';
+      const span = document.getElementById('span');
+      const callback = jest.fn();
+
+      const inlineClickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true
+      });
+      Object.defineProperty(inlineClickEvent, 'target', {
+        value: span,
+        writable: false
+      });
+
+      attachClickHandler(callback, mockDependencies);
+      span.dispatchEvent(inlineClickEvent);
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('should not handle clicks on translation popup', () => {
+      document.body.innerHTML = '<div id="ct-translation-popup"><p id="para">Test</p></div>';
+      const para = document.getElementById('para');
+      const callback = jest.fn();
+
+      const popupClickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true
+      });
+      Object.defineProperty(popupClickEvent, 'target', {
+        value: para,
+        writable: false
+      });
+
+      attachClickHandler(callback, mockDependencies);
+      para.dispatchEvent(popupClickEvent);
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('should prevent default for word wrapper clicks but not call callback', () => {
+      document.body.innerHTML = '<span class="ct-word-wrapper" id="wrapper">Test</span>';
+      const wrapper = document.getElementById('wrapper');
+      const callback = jest.fn();
+
+      const wrapperClickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true
+      });
+      Object.defineProperty(wrapperClickEvent, 'target', {
+        value: wrapper,
+        writable: false
+      });
+
+      attachClickHandler(callback, mockDependencies);
+
+      const preventDefaultSpy = jest.spyOn(wrapperClickEvent, 'preventDefault');
+      const stopPropagationSpy = jest.spyOn(wrapperClickEvent, 'stopPropagation');
+
+      wrapper.dispatchEvent(wrapperClickEvent);
+
+      expect(preventDefaultSpy).toHaveBeenCalled();
+      expect(stopPropagationSpy).toHaveBeenCalled();
+      expect(callback).not.toHaveBeenCalled();
+
+      preventDefaultSpy.mockRestore();
+      stopPropagationSpy.mockRestore();
+    });
+
+    it('should handle selected text translation', async () => {
+      const mockRange = { start: 0, end: 5 };
+      const mockSelection = {
+        toString: () => 'hello',
+        rangeCount: 1,
+        getRangeAt: () => mockRange
+      };
+
+      mockDependencies.getSelection.mockReturnValue(mockSelection);
+      mockDependencies.extractContextFromRangeFn.mockReturnValue('context text');
+
+      const callback = jest.fn().mockResolvedValue(undefined);
+
+      attachClickHandler(callback, mockDependencies);
+      await document.getElementById('content').dispatchEvent(clickEvent);
+
+      // Wait for async handler
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(callback).toHaveBeenCalledWith(
+        'hello',
+        'context text',
+        mockRange,
+        100,
+        200
+      );
+    });
+
+    it('should handle word at point translation when no selection', async () => {
+      const mockNode = { nodeType: 3 };
+      const mockRange = { start: 0, end: 5 };
+
+      mockDependencies.getSelection.mockReturnValue({
+        toString: () => '',
+        rangeCount: 0
+      });
+      mockDependencies.extractWordAtPointFn.mockReturnValue({
+        text: 'world',
+        node: mockNode,
+        range: mockRange
+      });
+      mockDependencies.extractContextFn.mockReturnValue('point context');
+
+      const callback = jest.fn().mockResolvedValue(undefined);
+
+      attachClickHandler(callback, mockDependencies);
+      await document.getElementById('content').dispatchEvent(clickEvent);
+
+      // Wait for async handler
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(mockDependencies.extractWordAtPointFn).toHaveBeenCalledWith(100, 200);
+      expect(callback).toHaveBeenCalledWith(
+        'world',
+        'point context',
+        mockRange,
+        100,
+        200
+      );
+    });
+
+    it('should use context window size from settings', async () => {
+      mockDependencies.settingsManager.get.mockReturnValue(500);
+      mockDependencies.getSelection.mockReturnValue({
+        toString: () => 'test',
+        rangeCount: 1,
+        getRangeAt: () => ({})
+      });
+      mockDependencies.extractContextFromRangeFn.mockReturnValue('context');
+
+      const callback = jest.fn().mockResolvedValue(undefined);
+
+      attachClickHandler(callback, mockDependencies);
+      await document.getElementById('content').dispatchEvent(clickEvent);
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(mockDependencies.settingsManager.get).toHaveBeenCalledWith('contextWindowChars');
+      expect(mockDependencies.extractContextFromRangeFn).toHaveBeenCalledWith(expect.anything(), 500);
+    });
+
+    it('should use default context window size when setting not available', async () => {
+      mockDependencies.settingsManager.get.mockReturnValue(null);
+      mockDependencies.getSelection.mockReturnValue({
+        toString: () => 'test',
+        rangeCount: 1,
+        getRangeAt: () => ({})
+      });
+      mockDependencies.extractContextFromRangeFn.mockReturnValue('context');
+
+      const callback = jest.fn().mockResolvedValue(undefined);
+
+      attachClickHandler(callback, mockDependencies);
+      await document.getElementById('content').dispatchEvent(clickEvent);
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(mockDependencies.extractContextFromRangeFn).toHaveBeenCalledWith(expect.anything(), 200);
+    });
+
+    it('should not call callback when no selection and no word at point', async () => {
+      mockDependencies.getSelection.mockReturnValue({
+        toString: () => '',
+        rangeCount: 0
+      });
+      mockDependencies.extractWordAtPointFn.mockReturnValue(null);
+
+      const callback = jest.fn();
+
+      attachClickHandler(callback, mockDependencies);
+      await document.getElementById('content').dispatchEvent(clickEvent);
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('should not call callback when handler is inactive', async () => {
+      const callback = jest.fn();
+
+      attachClickHandler(callback, mockDependencies);
+      detachClickHandler();
+
+      await document.getElementById('content').dispatchEvent(clickEvent);
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('should handle callback errors gracefully', async () => {
+      mockDependencies.getSelection.mockReturnValue({
+        toString: () => 'test',
+        rangeCount: 1,
+        getRangeAt: () => ({})
+      });
+      mockDependencies.extractContextFromRangeFn.mockReturnValue('context');
+
+      const callback = jest.fn().mockRejectedValue(new Error('Callback error'));
+
+      attachClickHandler(callback, mockDependencies);
+
+      // Trigger the click event - the error should not propagate
+      document.getElementById('content').dispatchEvent(clickEvent);
+
+      // Wait for async handler and catch any unhandled rejections
+      await new Promise(resolve => setTimeout(resolve, 20));
+
+      // Callback should have been called even though it threw
+      expect(callback).toHaveBeenCalled();
+    });
+
+    it('should pass correct coordinates to callback', async () => {
+      const mockRange = { start: 0, end: 5 };
+      mockDependencies.getSelection.mockReturnValue({
+        toString: () => 'test',
+        rangeCount: 1,
+        getRangeAt: () => mockRange
+      });
+      mockDependencies.extractContextFromRangeFn.mockReturnValue('context');
+
+      const callback = jest.fn().mockResolvedValue(undefined);
+
+      const customClickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 456,
+        clientY: 789
+      });
+      Object.defineProperty(customClickEvent, 'target', {
+        value: document.getElementById('content'),
+        writable: false
+      });
+
+      attachClickHandler(callback, mockDependencies);
+      await document.getElementById('content').dispatchEvent(customClickEvent);
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(callback).toHaveBeenCalledWith(
+        'test',
+        'context',
+        mockRange,
+        456,
+        789
+      );
+    });
+  });
 });

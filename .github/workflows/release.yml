@@ -155,9 +155,15 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Switch to main branch and pull latest
+          git checkout main
+          git pull origin main
+
+          # Make changes and commit
           git add updates.json
           git commit -m "Update updates.json for version ${{ steps.version.outputs.version }}"
-          git push origin HEAD:main
+          git push origin main
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
