@@ -1,10 +1,16 @@
 # Context Translator
 
-A Firefox extension for context-aware translation using local LLM servers. Translate words and phrases directly on web pages with intelligent context understanding—no backend required. Also great for learning new languages.
+This is a browser (currently: Firefox) extension for context-aware translation using local LLM server. Activate it, choose a lanugage pair, and click on words or phrases to trasnlate them directly on web pages with context-aware understanding. Great for learning new languages!
 
 ## Overview
 
-Context Translator enhances translation accuracy by sending surrounding text to your local LLM, helping it understand ambiguous words in context. All processing happens locally on your machine for complete privacy.
+Context Translator sends selected words to your local LLM server for translation. It also sends the surrounding text, helping it understand ambiguous words in context. All processing happens locally on your machine for complete privacy.
+
+## Why?
+
+Firefox and other browsers already offer translation features, so why this extension? Its main purpose is to help you learn new languages by allowing you to choose which words to translate. However, words in isolation often have multiple meanings, and the optimal one depends on the context. This extension helps you understand the intended meaning by providing context-aware translations.
+
+Also, unlike paid offerings, this is free and open source. If you have ideas how to improve it, please open an issue or submit a pull request.
 
 **Key Features:**
 - Context-aware translation using surrounding text

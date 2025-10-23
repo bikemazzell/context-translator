@@ -173,7 +173,7 @@ content = re.sub(
 # Update version links at the bottom
 # Add new version link
 version_links_pattern = r'(## Version Links.*?\n\n)(- \[Unreleased\]:.*?\n)'
-new_link = f'- [{version}]: https://github.com/yourusername/context-translator/releases/tag/v{version}\n'
+new_link = f'- [{version}]: https://github.com/bikemazzell/context-translator/releases/tag/v{version}\n'
 
 def add_version_link(match):
     header = match.group(1)
@@ -204,7 +204,7 @@ if ! grep -q "!\[Version\]" "$README_FILE"; then
     echo "  Adding version badge to README.md..."
     if [ "$DRY_RUN" = false ]; then
         # Add badge after title
-        sed -i '1 a\\n![Version](https://img.shields.io/github/v/release/yourusername/context-translator?label=version)\n![Firefox](https://img.shields.io/badge/Firefox-MV3-orange)\n![License](https://img.shields.io/badge/license-MIT-blue)' "$README_FILE"
+        sed -i '1 a\\n![Version](https://img.shields.io/github/v/release/bikemazzell/context-translator?label=version)\n![Firefox](https://img.shields.io/badge/Firefox-MV3-orange)\n![License](https://img.shields.io/badge/license-MIT-blue)' "$README_FILE"
         print_success "Version badge added to README.md"
     else
         print_warning "Would add version badge to README.md (dry-run)"
