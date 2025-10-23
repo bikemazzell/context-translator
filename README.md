@@ -66,9 +66,9 @@ npm test
 
 ### Setup
 
-1. **Start your LLM server** (LMStudio, Ollama, etc.) on `localhost:1234`
-2. **Click the extension icon** to open settings
-3. **Configure languages** - Add and select source/target languages
+1. **Start your LLM server** (LMStudio, Ollama, etc.) on `localhost:1234`, select and load a model (e.g. Gemma)
+2. **Click the extension icon** and open Settings (cogwheel emoji)
+3. **Configure languages** - Select source/target languages - you can add custom languages, if your model can handle them
 4. **Configure LLM endpoint** - Set host and port if not using defaults
 
 ### Translating
@@ -197,10 +197,6 @@ Larger models provide better translation quality, especially for context awarene
 - **Open Source** - Full transparency, audit the code yourself
 
 ## Troubleshooting
-
-### Extension won't load
-- Use Firefox Developer Edition or Nightly for unsigned extensions
-- Set `xpinstall.signatures.required = false` in `about:config`
 
 ### Translations fail
 - Verify LLM server is running: `curl http://localhost:1234/v1/models`
