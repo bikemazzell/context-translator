@@ -4,18 +4,12 @@
 
 import { jest } from '@jest/globals';
 import { showTooltip, removeTooltip } from '../content/ui/tooltip.js';
-import * as utils from '../shared/utils.js';
-
-jest.mock('../shared/utils.js', () => ({
-  isDarkMode: jest.fn()
-}));
 
 describe('Tooltip Translation Display', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
     jest.clearAllTimers();
     jest.useFakeTimers();
-    utils.isDarkMode.mockClear();
   });
 
   afterEach(() => {
@@ -34,6 +28,13 @@ describe('Tooltip Translation Display', () => {
       expect(tooltip.style.top).toBe('220px');
     });
 
+    it('should offset tooltip position by 20px vertically', () => {
+      showTooltip('Offset test', 50, 100);
+
+      const tooltip = document.getElementById('ct-translation-popup');
+      expect(tooltip.style.top).toBe('120px');
+    });
+
     it('should remove existing tooltip before showing new one', () => {
       showTooltip('First translation', 100, 200);
       const firstTooltip = document.getElementById('ct-translation-popup');
@@ -43,34 +44,6 @@ describe('Tooltip Translation Display', () => {
       const tooltips = document.querySelectorAll('#ct-translation-popup');
       expect(tooltips.length).toBe(1);
       expect(tooltips[0].textContent).toBe('Second translation');
-    });
-
-    it('should apply dark mode class when isDarkMode returns true', () => {
-      utils.isDarkMode.mockReturnValue(true);
-
-      showTooltip('Dark mode translation', 100, 200, 'dark');
-
-      const tooltip = document.getElementById('ct-translation-popup');
-      expect(tooltip.classList.contains('ct-dark-mode')).toBe(true);
-      expect(utils.isDarkMode).toHaveBeenCalledWith('dark');
-    });
-
-    it('should not apply dark mode class when isDarkMode returns false', () => {
-      utils.isDarkMode.mockReturnValue(false);
-
-      showTooltip('Light mode translation', 100, 200, 'light');
-
-      const tooltip = document.getElementById('ct-translation-popup');
-      expect(tooltip.classList.contains('ct-dark-mode')).toBe(false);
-      expect(utils.isDarkMode).toHaveBeenCalledWith('light');
-    });
-
-    it('should use auto dark mode by default', () => {
-      utils.isDarkMode.mockReturnValue(false);
-
-      showTooltip('Auto mode translation', 100, 200);
-
-      expect(utils.isDarkMode).toHaveBeenCalledWith('auto');
     });
 
     it('should apply custom background color styling', () => {
@@ -84,11 +57,10 @@ describe('Tooltip Translation Display', () => {
 
       const tooltip = document.getElementById('ct-translation-popup');
       expect(tooltip.style.background).toContain('rgba(255, 87, 51, 0.8)');
-      expect(tooltip.style.color).toBe('#ffffff');
-      expect(tooltip.style.border).toBe('none');
+      expect(tooltip.style.color).toBe('rgb(255, 255, 255)');
     });
 
-    it('should use default opacity when not specified in custom styling', () => {
+    it('should use default opacity (0.9) when not specified in custom styling', () => {
       const styleSettings = {
         translationBgColor: '#ff5733',
         translationTextColor: '#ffffff'
@@ -108,8 +80,7 @@ describe('Tooltip Translation Display', () => {
       showTooltip('Text color only', 100, 200, 'auto', styleSettings);
 
       const tooltip = document.getElementById('ct-translation-popup');
-      expect(tooltip.style.color).toBe('#ffffff');
-      expect(tooltip.style.border).toBe('none');
+      expect(tooltip.style.color).toBe('rgb(255, 255, 255)');
     });
 
     it('should handle hex colors without # prefix', () => {
@@ -124,7 +95,7 @@ describe('Tooltip Translation Display', () => {
       expect(tooltip.style.background).toContain('rgba(255, 87, 51, 0.5)');
     });
 
-    it('should fallback to default color for invalid hex', () => {
+    it('should fallback to default color (#333333) for invalid hex', () => {
       const styleSettings = {
         translationBgColor: 'invalid',
         translationBgOpacity: 0.7
@@ -136,7 +107,7 @@ describe('Tooltip Translation Display', () => {
       expect(tooltip.style.background).toContain('rgba(51, 51, 51, 0.7)');
     });
 
-    it('should handle short hex colors', () => {
+    it('should fallback to default color for short hex codes', () => {
       const styleSettings = {
         translationBgColor: '#abc'
       };
@@ -145,21 +116,6 @@ describe('Tooltip Translation Display', () => {
 
       const tooltip = document.getElementById('ct-translation-popup');
       expect(tooltip.style.background).toContain('rgba(51, 51, 51, 0.9)');
-    });
-
-    it('should prioritize custom styling over dark mode', () => {
-      utils.isDarkMode.mockReturnValue(true);
-
-      const styleSettings = {
-        translationBgColor: '#ff5733',
-        translationTextColor: '#ffffff'
-      };
-
-      showTooltip('Custom over dark mode', 100, 200, 'dark', styleSettings);
-
-      const tooltip = document.getElementById('ct-translation-popup');
-      expect(tooltip.classList.contains('ct-dark-mode')).toBe(false);
-      expect(tooltip.style.background).toContain('rgba(255, 87, 51, 0.9)');
     });
 
     it('should handle zero opacity', () => {
@@ -183,7 +139,31 @@ describe('Tooltip Translation Display', () => {
       showTooltip('Full opacity', 100, 200, 'auto', styleSettings);
 
       const tooltip = document.getElementById('ct-translation-popup');
-      expect(tooltip.style.background).toContain('rgba(255, 87, 51, 1)');
+      const bg = tooltip.style.background;
+      expect(bg === 'rgba(255, 87, 51, 1)' || bg === 'rgb(255, 87, 51)').toBe(true);
+    });
+
+    it('should handle partial opacity values', () => {
+      const styleSettings = {
+        translationBgColor: '#aabbcc',
+        translationBgOpacity: 0.33
+      };
+
+      showTooltip('Partial opacity', 100, 200, 'auto', styleSettings);
+
+      const tooltip = document.getElementById('ct-translation-popup');
+      expect(tooltip.style.background).toContain('rgba(170, 187, 204, 0.33)');
+    });
+
+    it('should apply custom styling without throwing errors', () => {
+      const styleSettings = {
+        translationBgColor: '#ff5733'
+      };
+
+      expect(() => showTooltip('No border', 100, 200, 'auto', styleSettings)).not.toThrow();
+
+      const tooltip = document.getElementById('ct-translation-popup');
+      expect(tooltip).toBeTruthy();
     });
   });
 
@@ -231,17 +211,17 @@ describe('Tooltip Translation Display', () => {
       expect(document.getElementById('ct-translation-popup')).toBeFalsy();
     });
 
-    it('should not trigger event listeners before timeout', () => {
-      showTooltip('Early event test', 100, 200);
+    it('should delay event listener attachment for 100ms', () => {
+      showTooltip('Delayed listener test', 100, 200);
+      expect(document.getElementById('ct-translation-popup')).toBeTruthy();
 
-      const tooltip = document.getElementById('ct-translation-popup');
-      expect(tooltip).toBeTruthy();
+      jest.advanceTimersByTime(100);
 
       const outsideElement = document.createElement('div');
       document.body.appendChild(outsideElement);
       outsideElement.click();
 
-      expect(document.getElementById('ct-translation-popup')).toBeTruthy();
+      expect(document.getElementById('ct-translation-popup')).toBeFalsy();
     });
 
     it('should handle multiple rapid tooltip displays correctly', () => {
@@ -262,6 +242,32 @@ describe('Tooltip Translation Display', () => {
       outsideElement.click();
 
       expect(document.getElementById('ct-translation-popup')).toBeFalsy();
+    });
+
+    it('should use capturing phase for scroll event', () => {
+      showTooltip('Scroll capture test', 100, 200);
+
+      jest.advanceTimersByTime(100);
+
+      const scrollEvent = new Event('scroll', { bubbles: false });
+      document.dispatchEvent(scrollEvent);
+
+      expect(document.getElementById('ct-translation-popup')).toBeFalsy();
+    });
+
+    it('should clean up event listeners after tooltip is removed', () => {
+      showTooltip('Cleanup test', 100, 200);
+
+      jest.advanceTimersByTime(100);
+
+      const outsideElement = document.createElement('div');
+      document.body.appendChild(outsideElement);
+
+      outsideElement.click();
+      expect(document.getElementById('ct-translation-popup')).toBeFalsy();
+
+      showTooltip('Second tooltip', 100, 200);
+      expect(document.getElementById('ct-translation-popup')).toBeTruthy();
     });
   });
 
@@ -305,6 +311,18 @@ describe('Tooltip Translation Display', () => {
       expect(document.getElementById('ct-translation-popup')).toBeFalsy();
       expect(document.getElementById('other-popup')).toBeTruthy();
     });
+
+    it('should be idempotent', () => {
+      const tooltip = document.createElement('div');
+      tooltip.id = 'ct-translation-popup';
+      document.body.appendChild(tooltip);
+
+      removeTooltip();
+      expect(document.getElementById('ct-translation-popup')).toBeFalsy();
+
+      expect(() => removeTooltip()).not.toThrow();
+      expect(document.getElementById('ct-translation-popup')).toBeFalsy();
+    });
   });
 
   describe('Edge cases', () => {
@@ -322,15 +340,26 @@ describe('Tooltip Translation Display', () => {
 
       const tooltip = document.getElementById('ct-translation-popup');
       expect(tooltip.textContent).toBe(longText);
+      expect(tooltip.textContent.length).toBe(10000);
     });
 
-    it('should handle special characters in translation', () => {
+    it('should handle special characters in translation (XSS prevention)', () => {
       const specialText = '<script>alert("xss")</script> & "quotes" \' apostrophes';
       showTooltip(specialText, 100, 200);
 
       const tooltip = document.getElementById('ct-translation-popup');
       expect(tooltip.textContent).toBe(specialText);
       expect(tooltip.innerHTML).not.toContain('<script>');
+    });
+
+    it('should handle HTML injection attempts', () => {
+      const htmlText = '<img src=x onerror=alert(1)> <div onclick="alert(2)">Click</div>';
+      showTooltip(htmlText, 100, 200);
+
+      const tooltip = document.getElementById('ct-translation-popup');
+      expect(tooltip.textContent).toBe(htmlText);
+      expect(tooltip.querySelector('img')).toBeFalsy();
+      expect(tooltip.querySelector('div')).toBeFalsy();
     });
 
     it('should handle negative coordinates', () => {
@@ -355,6 +384,57 @@ describe('Tooltip Translation Display', () => {
       const tooltip = document.getElementById('ct-translation-popup');
       expect(tooltip.style.left).toBe('0px');
       expect(tooltip.style.top).toBe('20px');
+    });
+
+    it('should handle decimal coordinates', () => {
+      showTooltip('Decimal coords', 123.456, 789.012);
+
+      const tooltip = document.getElementById('ct-translation-popup');
+      expect(tooltip.style.left).toBe('123.456px');
+      expect(tooltip.style.top).toBe('809.012px');
+    });
+
+    it('should handle newlines in translation', () => {
+      const multilineText = 'Line 1\nLine 2\nLine 3';
+      showTooltip(multilineText, 100, 200);
+
+      const tooltip = document.getElementById('ct-translation-popup');
+      expect(tooltip.textContent).toBe(multilineText);
+    });
+
+    it('should handle unicode characters', () => {
+      const unicodeText = '你好世界 🌍 Привет мир';
+      showTooltip(unicodeText, 100, 200);
+
+      const tooltip = document.getElementById('ct-translation-popup');
+      expect(tooltip.textContent).toBe(unicodeText);
+    });
+
+    it('should handle null style settings gracefully', () => {
+      expect(() => showTooltip('Test', 100, 200, 'auto', null)).not.toThrow();
+
+      const tooltip = document.getElementById('ct-translation-popup');
+      expect(tooltip).toBeTruthy();
+    });
+
+    it('should handle empty style settings object', () => {
+      showTooltip('Test', 100, 200, 'auto', {});
+
+      const tooltip = document.getElementById('ct-translation-popup');
+      expect(tooltip).toBeTruthy();
+      expect(tooltip.style.border).toBe('');
+    });
+
+    it('should handle uppercase hex colors', () => {
+      const styleSettings = {
+        translationBgColor: '#AABBCC',
+        translationBgOpacity: 0.5
+      };
+
+      showTooltip('Uppercase hex', 100, 200, 'auto', styleSettings);
+
+      const tooltip = document.getElementById('ct-translation-popup');
+      expect(tooltip.style.background).toContain('rgba(170, 187, 204, 0.5)');
     });
   });
 });

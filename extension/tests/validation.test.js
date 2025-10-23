@@ -353,6 +353,130 @@ describe('validateSetting', () => {
       validateSetting('translationBgOpacity', true);
     }).toThrow('Invalid value for translationBgOpacity');
   });
+
+  test('should accept valid enableLogging', () => {
+    expect(() => {
+      validateSetting('enableLogging', true);
+    }).not.toThrow();
+
+    expect(() => {
+      validateSetting('enableLogging', false);
+    }).not.toThrow();
+  });
+
+  test('should reject invalid enableLogging', () => {
+    expect(() => {
+      validateSetting('enableLogging', 'true');
+    }).toThrow('Invalid value for enableLogging');
+
+    expect(() => {
+      validateSetting('enableLogging', 1);
+    }).toThrow('Invalid value for enableLogging');
+  });
+
+  test('should accept valid useRateLimit', () => {
+    expect(() => {
+      validateSetting('useRateLimit', true);
+    }).not.toThrow();
+
+    expect(() => {
+      validateSetting('useRateLimit', false);
+    }).not.toThrow();
+  });
+
+  test('should reject invalid useRateLimit', () => {
+    expect(() => {
+      validateSetting('useRateLimit', 'true');
+    }).toThrow('Invalid value for useRateLimit');
+
+    expect(() => {
+      validateSetting('useRateLimit', 0);
+    }).toThrow('Invalid value for useRateLimit');
+  });
+
+  test('should accept valid rateLimit', () => {
+    expect(() => {
+      validateSetting('rateLimit', 1);
+    }).not.toThrow();
+
+    expect(() => {
+      validateSetting('rateLimit', 60);
+    }).not.toThrow();
+
+    expect(() => {
+      validateSetting('rateLimit', 120);
+    }).not.toThrow();
+  });
+
+  test('should reject invalid rateLimit', () => {
+    expect(() => {
+      validateSetting('rateLimit', 0);
+    }).toThrow('Invalid value for rateLimit');
+
+    expect(() => {
+      validateSetting('rateLimit', 121);
+    }).toThrow('Invalid value for rateLimit');
+
+    expect(() => {
+      validateSetting('rateLimit', 1.5);
+    }).toThrow('Invalid value for rateLimit');
+
+    expect(() => {
+      validateSetting('rateLimit', '60');
+    }).toThrow('Invalid value for rateLimit');
+  });
+
+  test('should accept valid contextMode', () => {
+    expect(() => {
+      validateSetting('contextMode', true);
+    }).not.toThrow();
+
+    expect(() => {
+      validateSetting('contextMode', false);
+    }).not.toThrow();
+  });
+
+  test('should reject invalid contextMode', () => {
+    expect(() => {
+      validateSetting('contextMode', 'true');
+    }).toThrow('Invalid value for contextMode');
+
+    expect(() => {
+      validateSetting('contextMode', 1);
+    }).toThrow('Invalid value for contextMode');
+  });
+
+  test('should accept valid contextWindowChars', () => {
+    expect(() => {
+      validateSetting('contextWindowChars', 0);
+    }).not.toThrow();
+
+    expect(() => {
+      validateSetting('contextWindowChars', 200);
+    }).not.toThrow();
+
+    expect(() => {
+      validateSetting('contextWindowChars', 1000);
+    }).not.toThrow();
+  });
+
+  test('should reject invalid contextWindowChars', () => {
+    expect(() => {
+      validateSetting('contextWindowChars', -1);
+    }).toThrow('Invalid value for contextWindowChars');
+
+    expect(() => {
+      validateSetting('contextWindowChars', 1001);
+    }).toThrow('Invalid value for contextWindowChars');
+
+    expect(() => {
+      validateSetting('contextWindowChars', 100.5);
+    }).toThrow('Invalid value for contextWindowChars');
+
+    expect(() => {
+      validateSetting('contextWindowChars', '200');
+    }).toThrow('Invalid value for contextWindowChars');
+  });
 });
 
 describe('isValidHexColor', () => {
