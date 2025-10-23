@@ -1,5 +1,9 @@
 # Context Translator
 
+![Version](https://img.shields.io/github/v/release/bikemazzell/context-translator?label=version)
+![Firefox](https://img.shields.io/badge/Firefox-MV3-orange)
+![License](https://img.shields.io/badge/license-MIT-blue)
+
 This is a browser (currently: Firefox) extension for context-aware translation using local LLM server. Activate it, choose a lanugage pair, and click on words or phrases to trasnlate them directly on web pages with context-aware understanding. Great for learning new languages!
 
 ## Overview
