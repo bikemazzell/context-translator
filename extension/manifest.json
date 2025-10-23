@@ -69,7 +69,9 @@
     "gecko": {
       "id": "context-translator@bike-mazzell",
       "strict_min_version": "112.0",
-      "data_collection_permissions": false
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
   }
 }

@@ -466,6 +466,18 @@ describe('text-extraction', () => {
       expect(result).toBeDefined();
       expect(result).toContain('target word');
     });
+
+    test('should fallback when text node content not found in parent', () => {
+      // Create a scenario where text node content doesn't match parent's indexOf
+      mockTextNode.textContent = 'unique-text';
+      mockElement.textContent = 'completely-different-text';
+
+      const result = extractContext(mockTextNode, 50);
+
+      // Should return partial text (line 117)
+      expect(result).toBeDefined();
+      expect(consoleDebugSpy).toHaveBeenCalled();
+    });
   });
 
   describe('extractContextFromRange', () => {
