@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Context Translator",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Context-aware translation using local LLM - No backend required!",
   "permissions": [
     "storage",
@@ -70,7 +70,9 @@
       "id": "context-translator@bike-mazzell",
       "strict_min_version": "112.0",
       "data_collection_permissions": {
-        "required": ["none"]
+        "required": [
+          "none"
+        ]
       }
     }
   }
