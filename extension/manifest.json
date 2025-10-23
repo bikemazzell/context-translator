@@ -1,45 +1,51 @@
 {
   "manifest_version": 3,
   "name": "Context Translator",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Context-aware translation using local LLM - No backend required!",
-
   "permissions": [
     "storage",
     "unlimitedStorage",
     "activeTab"
   ],
-
   "host_permissions": [
     "http://localhost/*",
     "http://127.0.0.1/*"
   ],
-
   "background": {
-    "scripts": ["background/service-worker.js"],
+    "scripts": [
+      "background/service-worker.js"
+    ],
     "type": "module"
   },
-
-  "content_scripts": [{
-    "matches": ["<all_urls>"],
-    "js": ["content/loader.js"],
-    "css": [
-      "content/styles/translations.css",
-      "content/styles/animations.css"
-    ],
-    "run_at": "document_idle"
-  }],
-
-  "web_accessible_resources": [{
-    "resources": [
-      "content/main.js",
-      "content/handlers/*.js",
-      "content/ui/*.js",
-      "shared/*.js"
-    ],
-    "matches": ["<all_urls>"]
-  }],
-
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content/loader.js"
+      ],
+      "css": [
+        "content/styles/translations.css",
+        "content/styles/animations.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "content/main.js",
+        "content/handlers/*.js",
+        "content/ui/*.js",
+        "shared/*.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
   "action": {
     "default_popup": "popup/popup.html",
     "default_icon": {
@@ -47,12 +53,10 @@
       "96": "icons/icon-96.png"
     }
   },
-
   "icons": {
     "48": "icons/icon-48.png",
     "96": "icons/icon-96.png"
   },
-
   "commands": {
     "toggle-translator": {
       "suggested_key": {
@@ -61,7 +65,6 @@
       "description": "Toggle Context Translator (Ctrl+Alt+C)"
     }
   },
-
   "browser_specific_settings": {
     "gecko": {
       "id": "context-translator@bike-mazzell",

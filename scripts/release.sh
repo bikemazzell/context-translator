@@ -149,14 +149,15 @@ RELEASE_DATE=$(date +%Y-%m-%d)
 
 if [ "$DRY_RUN" = false ]; then
     # Replace [Unreleased] with version and date, and add new [Unreleased] section
-    python3 << 'EOF'
+    python3 << EOF
 import re
 from datetime import datetime
 
 version = '$VERSION'
 release_date = '$RELEASE_DATE'
+changelog_file = '$CHANGELOG_FILE'
 
-with open('$CHANGELOG_FILE', 'r') as f:
+with open(changelog_file, 'r') as f:
     content = f.read()
 
 # Find the Unreleased section
@@ -188,7 +189,7 @@ def add_version_link(match):
 
 content = re.sub(version_links_pattern, add_version_link, content, flags=re.DOTALL)
 
-with open('$CHANGELOG_FILE', 'w') as f:
+with open(changelog_file, 'w') as f:
     f.write(content)
 EOF
     print_success "CHANGELOG.md updated"
