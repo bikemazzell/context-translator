@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Context Translator",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Context-aware translation using local LLM - No backend required!",
   "author": "Vincent (v)",
   "homepage_url": "https://github.com/anthropics/context-translator",
