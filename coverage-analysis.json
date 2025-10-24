@@ -1,0 +1,254 @@
+[
+  {
+    "name": "background/cache-manager.js",
+    "stmts": "90.51",
+    "branches": "71.43",
+    "funcs": "91.67",
+    "lines": 0
+  },
+  {
+    "name": "background/llm-client.js",
+    "stmts": "97.83",
+    "branches": "97.92",
+    "funcs": "83.33",
+    "lines": 0
+  },
+  {
+    "name": "background/message-handler.js",
+    "stmts": "97.87",
+    "branches": "96.30",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "background/prompt-builder.js",
+    "stmts": "100.00",
+    "branches": "100.00",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "background/response-cleaner.js",
+    "stmts": "100.00",
+    "branches": "100.00",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "background/service-worker-main.js",
+    "stmts": "100.00",
+    "branches": "95.83",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "background/service-worker.js",
+    "stmts": "0.00",
+    "branches": "0.00",
+    "funcs": "0.00",
+    "lines": 0
+  },
+  {
+    "name": "content/loader.js",
+    "stmts": "88.89",
+    "branches": "87.50",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "content/main.js",
+    "stmts": "0.00",
+    "branches": "NaN",
+    "funcs": "0.00",
+    "lines": 0
+  },
+  {
+    "name": "content/handlers/click-handler.js",
+    "stmts": "85.71",
+    "branches": "87.10",
+    "funcs": "60.00",
+    "lines": 0
+  },
+  {
+    "name": "content/handlers/text-extraction.js",
+    "stmts": "89.54",
+    "branches": "84.88",
+    "funcs": "85.71",
+    "lines": 0
+  },
+  {
+    "name": "content/ui/inline-translation.js",
+    "stmts": "3.37",
+    "branches": "0.85",
+    "funcs": "4.55",
+    "lines": 0
+  },
+  {
+    "name": "content/ui/toast.js",
+    "stmts": "100.00",
+    "branches": "100.00",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "content/ui/tooltip.js",
+    "stmts": "100.00",
+    "branches": "100.00",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "controllers/content-controller.js",
+    "stmts": "100.00",
+    "branches": "95.24",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "controllers/popup-controller.js",
+    "stmts": "100.00",
+    "branches": "85.29",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "core/click-handler-utils.js",
+    "stmts": "100.00",
+    "branches": "100.00",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "core/inline-translation-utils.js",
+    "stmts": "100.00",
+    "branches": "98.65",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "lib/external/browser-polyfill.js",
+    "stmts": "0.00",
+    "branches": "0.00",
+    "funcs": "0.00",
+    "lines": 0
+  },
+  {
+    "name": "lib/translation/llm-client.js",
+    "stmts": "10.96",
+    "branches": "5.13",
+    "funcs": "9.09",
+    "lines": 0
+  },
+  {
+    "name": "lib/translation/translation-cache.js",
+    "stmts": "3.82",
+    "branches": "1.96",
+    "funcs": "2.70",
+    "lines": 0
+  },
+  {
+    "name": "popup/popup.js",
+    "stmts": "0.00",
+    "branches": "0.00",
+    "funcs": "0.00",
+    "lines": 0
+  },
+  {
+    "name": "services/language-service.js",
+    "stmts": "100.00",
+    "branches": "93.75",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "services/settings-service.js",
+    "stmts": "100.00",
+    "branches": "100.00",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "services/storage-service.js",
+    "stmts": "100.00",
+    "branches": "100.00",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "services/translation-service.js",
+    "stmts": "100.00",
+    "branches": "95.24",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "services/ui-state-manager.js",
+    "stmts": "100.00",
+    "branches": "100.00",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "shared/config.js",
+    "stmts": "100.00",
+    "branches": "NaN",
+    "funcs": "NaN",
+    "lines": 0
+  },
+  {
+    "name": "shared/error-boundary.js",
+    "stmts": "50.00",
+    "branches": "25.00",
+    "funcs": "33.33",
+    "lines": 0
+  },
+  {
+    "name": "shared/errors.js",
+    "stmts": "40.91",
+    "branches": "0.00",
+    "funcs": "25.00",
+    "lines": 0
+  },
+  {
+    "name": "shared/language-manager.js",
+    "stmts": "100.00",
+    "branches": "100.00",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "shared/logger.js",
+    "stmts": "90.00",
+    "branches": "85.19",
+    "funcs": "87.50",
+    "lines": 0
+  },
+  {
+    "name": "shared/rate-limiter.js",
+    "stmts": "100.00",
+    "branches": "100.00",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "shared/settings-manager.js",
+    "stmts": "100.00",
+    "branches": "100.00",
+    "funcs": "100.00",
+    "lines": 0
+  },
+  {
+    "name": "shared/utils.js",
+    "stmts": "43.06",
+    "branches": "56.41",
+    "funcs": "62.50",
+    "lines": 0
+  },
+  {
+    "name": "shared/validation.js",
+    "stmts": "100.00",
+    "branches": "100.00",
+    "funcs": "100.00",
+    "lines": 0
+  }
+]

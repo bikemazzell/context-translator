@@ -376,7 +376,7 @@ describe('TranslationService', () => {
       mockSettingsManager.get.mockReturnValue('en');
 
       const longText = 'a'.repeat(10000);
-      const result = await service.translate(longText, 'context');
+      await service.translate(longText, 'context');
 
       expect(mockMessenger.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({

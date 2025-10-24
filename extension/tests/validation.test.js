@@ -8,6 +8,9 @@ import {
   validateSetting,
   sanitizeText,
   isValidEndpoint,
+  validateEndpoint,
+  isSecureEndpoint,
+  isLocalEndpoint,
   isValidHexColor
 } from '../shared/validation.js';
 
@@ -568,5 +571,113 @@ describe('isValidEndpoint', () => {
     expect(isValidEndpoint(null)).toBe(false);
     expect(isValidEndpoint(undefined)).toBe(false);
     expect(isValidEndpoint(123)).toBe(false);
+  });
+});
+
+describe('validateEndpoint', () => {
+  test('should validate secure HTTPS endpoints', () => {
+    const result = validateEndpoint('https://api.openai.com/v1/chat');
+    expect(result.valid).toBe(true);
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  test('should validate local HTTP endpoints without warnings', () => {
+    const result = validateEndpoint('http://localhost:1234/v1/chat');
+    expect(result.valid).toBe(true);
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  test('should warn about HTTP on remote endpoints', () => {
+    const result = validateEndpoint('http://api.example.com/v1/chat');
+    expect(result.valid).toBe(true);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain('unencrypted HTTP');
+  });
+
+  test('should warn about non-standard ports', () => {
+    const result = validateEndpoint('http://localhost:9999/v1/chat');
+    expect(result.valid).toBe(true);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain('non-standard port 9999');
+  });
+
+  test('should not warn about common LLM ports', () => {
+    const commonPorts = ['1234', '5000', '8000', '8080', '11434'];
+
+    commonPorts.forEach(port => {
+      const result = validateEndpoint(`http://localhost:${port}/v1/chat`);
+      expect(result.valid).toBe(true);
+      expect(result.warnings).toHaveLength(0);
+    });
+  });
+
+  test('should reject invalid protocols', () => {
+    const result = validateEndpoint('ftp://localhost:1234');
+    expect(result.valid).toBe(false);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain('Invalid protocol');
+  });
+
+  test('should reject malformed URLs', () => {
+    const result = validateEndpoint('not a url');
+    expect(result.valid).toBe(false);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain('Invalid URL format');
+  });
+
+  test('should combine multiple warnings', () => {
+    const result = validateEndpoint('http://api.example.com:9999/v1/chat');
+    expect(result.valid).toBe(true);
+    expect(result.warnings).toHaveLength(2);
+    expect(result.warnings[0]).toContain('unencrypted HTTP');
+    expect(result.warnings[1]).toContain('non-standard port');
+  });
+});
+
+describe('isSecureEndpoint', () => {
+  test('should identify HTTPS endpoints', () => {
+    expect(isSecureEndpoint('https://api.openai.com')).toBe(true);
+    expect(isSecureEndpoint('https://localhost')).toBe(true);
+  });
+
+  test('should reject HTTP endpoints', () => {
+    expect(isSecureEndpoint('http://localhost')).toBe(false);
+    expect(isSecureEndpoint('http://api.example.com')).toBe(false);
+  });
+
+  test('should reject invalid URLs', () => {
+    expect(isSecureEndpoint('not a url')).toBe(false);
+    expect(isSecureEndpoint('')).toBe(false);
+  });
+});
+
+describe('isLocalEndpoint', () => {
+  test('should identify localhost', () => {
+    expect(isLocalEndpoint('http://localhost:1234')).toBe(true);
+    expect(isLocalEndpoint('https://localhost')).toBe(true);
+  });
+
+  test('should identify 127.0.0.1', () => {
+    expect(isLocalEndpoint('http://127.0.0.1:8080')).toBe(true);
+  });
+
+  test('should identify local network addresses', () => {
+    expect(isLocalEndpoint('http://192.168.1.1')).toBe(true);
+    expect(isLocalEndpoint('http://10.0.0.1')).toBe(true);
+    expect(isLocalEndpoint('http://172.16.0.1')).toBe(true);
+    expect(isLocalEndpoint('http://172.20.0.1')).toBe(true);
+    expect(isLocalEndpoint('http://172.31.255.255')).toBe(true);
+  });
+
+  test('should not identify public addresses as local', () => {
+    expect(isLocalEndpoint('https://api.openai.com')).toBe(false);
+    expect(isLocalEndpoint('http://8.8.8.8')).toBe(false);
+    expect(isLocalEndpoint('http://172.15.0.1')).toBe(false);
+    expect(isLocalEndpoint('http://172.32.0.1')).toBe(false);
+  });
+
+  test('should handle invalid URLs', () => {
+    expect(isLocalEndpoint('not a url')).toBe(false);
+    expect(isLocalEndpoint('')).toBe(false);
   });
 });

@@ -28,7 +28,7 @@ export class LanguageService {
       }
 
       return [];
-    } catch (error) {
+    } catch {
       return [];
     }
   }

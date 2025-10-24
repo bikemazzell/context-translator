@@ -25,7 +25,17 @@ describe('text-extraction', () => {
 
     // Mock NodeFilter constants
     global.NodeFilter = {
-      SHOW_TEXT: 4
+      SHOW_TEXT: 4,
+      FILTER_ACCEPT: 1,
+      FILTER_REJECT: 2
+    };
+
+    // Mock window.getComputedStyle for all tests
+    global.window = {
+      getComputedStyle: jest.fn().mockReturnValue({
+        display: 'block',
+        visibility: 'visible'
+      })
     };
   });
 
@@ -33,6 +43,7 @@ describe('text-extraction', () => {
     consoleDebugSpy.mockRestore();
     delete global.Node;
     delete global.NodeFilter;
+    delete global.window;
     delete global.document;
   });
 
@@ -478,6 +489,116 @@ describe('text-extraction', () => {
       expect(result).toBeDefined();
       expect(consoleDebugSpy).toHaveBeenCalled();
     });
+
+    test('should skip excluded parent elements when traversing', () => {
+      // Create nested structure with excluded parent
+      const mockScript = {
+        tagName: 'SCRIPT',
+        textContent: 'var x = 1;',
+        parentElement: mockElement
+      };
+
+      const smallElement = {
+        tagName: 'SPAN',
+        textContent: 'short',
+        parentElement: mockScript
+      };
+
+      mockTextNode.parentElement = smallElement;
+
+      const result = extractContext(mockTextNode, 100);
+
+      // Should skip script and continue to valid parent or fallback
+      expect(result).toBeDefined();
+      expect(consoleDebugSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Skipping excluded element')
+      );
+    });
+
+    test('should reject text nodes inside excluded elements in TreeWalker', () => {
+      const mockElementInput = {
+        nodeType: 1, // ELEMENT_NODE
+        tagName: 'DIV',
+        textContent: 'Some content'
+      };
+
+      // Mock document.createTreeWalker that tests the filter
+      global.document = {
+        createTreeWalker: jest.fn((node, show, filter) => {
+          // Test the acceptNode function with a mock text node inside script
+          const mockTextNodeInScript = {
+            parentElement: {
+              tagName: 'SCRIPT',
+              parentElement: null
+            }
+          };
+
+          // Call the acceptNode filter
+          const result = filter.acceptNode(mockTextNodeInScript);
+          expect(result).toBe(NodeFilter.FILTER_REJECT);
+
+          return {
+            nextNode: () => null
+          };
+        })
+      };
+
+      const result = extractContext(mockElementInput, 40);
+
+      expect(document.createTreeWalker).toHaveBeenCalled();
+      expect(result).toBe('');
+    });
+
+    test('should accept text nodes not inside excluded elements in TreeWalker', () => {
+      const mockElementInput = {
+        nodeType: 1, // ELEMENT_NODE
+        tagName: 'DIV',
+        textContent: 'Some content'
+      };
+
+      // Mock document.createTreeWalker that tests the filter accepts valid nodes
+      global.document = {
+        createTreeWalker: jest.fn((node, show, filter) => {
+          // Test the acceptNode function with a valid text node
+          const mockValidTextNode = {
+            textContent: 'valid text',
+            parentElement: {
+              tagName: 'P',
+              parentElement: null
+            }
+          };
+
+          // Call the acceptNode filter
+          const result = filter.acceptNode(mockValidTextNode);
+          expect(result).toBe(NodeFilter.FILTER_ACCEPT);
+
+          return {
+            nextNode: () => mockValidTextNode
+          };
+        })
+      };
+
+      const result = extractContext(mockElementInput, 40);
+
+      expect(document.createTreeWalker).toHaveBeenCalled();
+    });
+
+    test('should return null for element node when TreeWalker finds no text', () => {
+      const mockElementInput = {
+        nodeType: 1, // ELEMENT_NODE
+        tagName: 'DIV'
+      };
+
+      global.document = {
+        createTreeWalker: jest.fn(() => ({
+          nextNode: () => null
+        }))
+      };
+
+      const result = extractContext(mockElementInput, 40);
+
+      expect(result).toBe('');
+    });
   });
 
   describe('extractContextFromRange', () => {
@@ -592,6 +713,184 @@ describe('text-extraction', () => {
 
       expect(result).not.toMatch(/^\s/);
       expect(result).not.toMatch(/\s$/);
+    });
+  });
+
+  describe('Security: Element Exclusion', () => {
+    test('should exclude script tags from context extraction', () => {
+      const mockScript = {
+        nodeType: Node.ELEMENT_NODE,
+        tagName: 'SCRIPT',
+        parentElement: null,
+        textContent: 'alert("malicious code")'
+      };
+
+      global.window.getComputedStyle.mockReturnValue({
+        display: 'block',
+        visibility: 'visible'
+      });
+
+      const mockTextNode = {
+        nodeType: Node.TEXT_NODE,
+        textContent: 'Hello',
+        parentElement: mockScript
+      };
+
+      const result = extractContext(mockTextNode, 100);
+
+      // Should return empty or fallback, not script content
+      expect(result).not.toContain('malicious');
+    });
+
+    test('should exclude style tags from context extraction', () => {
+      const mockStyle = {
+        nodeType: Node.ELEMENT_NODE,
+        tagName: 'STYLE',
+        parentElement: null,
+        textContent: '.class { color: red; }'
+      };
+
+      global.window.getComputedStyle.mockReturnValue({
+        display: 'block',
+        visibility: 'visible'
+      });
+
+      const mockTextNode = {
+        nodeType: Node.TEXT_NODE,
+        textContent: 'Hello',
+        parentElement: mockStyle
+      };
+
+      const result = extractContext(mockTextNode, 100);
+
+      // Should return empty or fallback, not style content
+      expect(result).not.toContain('color');
+    });
+
+    test('should exclude hidden elements (display:none)', () => {
+      const mockHiddenDiv = {
+        nodeType: Node.ELEMENT_NODE,
+        tagName: 'DIV',
+        parentElement: null,
+        textContent: 'Hidden content'
+      };
+
+      global.window.getComputedStyle.mockReturnValue({
+        display: 'none',
+        visibility: 'visible'
+      });
+
+      const mockTextNode = {
+        nodeType: Node.TEXT_NODE,
+        textContent: 'Hidden',
+        parentElement: mockHiddenDiv
+      };
+
+      const result = extractContext(mockTextNode, 100);
+
+      // Should not extract from hidden element
+      expect(result).toBe('Hidden'); // Fallback to text node content
+    });
+
+    test('should exclude hidden elements (visibility:hidden)', () => {
+      const mockHiddenDiv = {
+        nodeType: Node.ELEMENT_NODE,
+        tagName: 'DIV',
+        parentElement: null,
+        textContent: 'Hidden content'
+      };
+
+      global.window.getComputedStyle.mockReturnValue({
+        display: 'block',
+        visibility: 'hidden'
+      });
+
+      const mockTextNode = {
+        nodeType: Node.TEXT_NODE,
+        textContent: 'Hidden',
+        parentElement: mockHiddenDiv
+      };
+
+      const result = extractContext(mockTextNode, 100);
+
+      // Should not extract from hidden element
+      expect(result).toBe('Hidden'); // Fallback to text node content
+    });
+
+    test('should exclude password input fields', () => {
+      const mockPasswordInput = {
+        nodeType: Node.ELEMENT_NODE,
+        tagName: 'INPUT',
+        getAttribute: jest.fn().mockReturnValue('password'),
+        parentElement: null,
+        textContent: 'secret123'
+      };
+
+      global.window.getComputedStyle.mockReturnValue({
+        display: 'block',
+        visibility: 'visible'
+      });
+
+      const mockTextNode = {
+        nodeType: Node.TEXT_NODE,
+        textContent: 'secret',
+        parentElement: mockPasswordInput
+      };
+
+      const result = extractContext(mockTextNode, 100);
+
+      // Should not extract from password field
+      expect(result).toBe('secret'); // Fallback to text node content
+    });
+
+    test('should exclude textarea fields', () => {
+      const mockTextarea = {
+        nodeType: Node.ELEMENT_NODE,
+        tagName: 'TEXTAREA',
+        parentElement: null,
+        textContent: 'user input data'
+      };
+
+      global.window.getComputedStyle.mockReturnValue({
+        display: 'block',
+        visibility: 'visible'
+      });
+
+      const mockTextNode = {
+        nodeType: Node.TEXT_NODE,
+        textContent: 'user input',
+        parentElement: mockTextarea
+      };
+
+      const result = extractContext(mockTextNode, 100);
+
+      // Should not extract from textarea
+      expect(result).toBe('user input'); // Fallback to text node content
+    });
+
+    test('should exclude iframe elements', () => {
+      const mockIframe = {
+        nodeType: Node.ELEMENT_NODE,
+        tagName: 'IFRAME',
+        parentElement: null,
+        textContent: 'iframe content'
+      };
+
+      global.window.getComputedStyle.mockReturnValue({
+        display: 'block',
+        visibility: 'visible'
+      });
+
+      const mockTextNode = {
+        nodeType: Node.TEXT_NODE,
+        textContent: 'iframe',
+        parentElement: mockIframe
+      };
+
+      const result = extractContext(mockTextNode, 100);
+
+      // Should not extract from iframe
+      expect(result).toBe('iframe'); // Fallback to text node content
     });
   });
 });

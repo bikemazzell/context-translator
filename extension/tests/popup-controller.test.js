@@ -247,8 +247,8 @@ describe('PopupController', () => {
         languages: ['English', 'French']
       });
       mockSettingsService.getSetting.mockImplementation((key) => {
-        if (key === 'sourceLang') return 'German';
-        if (key === 'targetLang') return 'German';
+        if (key === 'sourceLang') {return 'German';}
+        if (key === 'targetLang') {return 'German';}
       });
 
       await controller.removeLanguage('German');

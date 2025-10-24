@@ -106,5 +106,5 @@ export class SettingsManager {
   }
 }
 
-// Create singleton instance
-export const settingsManager = new SettingsManager();
+// Singleton export removed - use dependency injection
+// Instantiate SettingsManager at entry points and pass as dependency

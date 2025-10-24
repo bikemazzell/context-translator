@@ -41,7 +41,8 @@ export const CONFIG = {
     toastDuration: 3000,
     tooltipDelay: 100,
     animationDuration: 200,
-    maxMergeWords: 20
+    maxMergeWords: 20,
+    maxActiveTranslations: 100
   },
 
   // Default User Settings

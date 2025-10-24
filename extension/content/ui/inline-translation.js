@@ -13,44 +13,50 @@ import {
   isWithinMergeLimit
 } from '../../core/inline-translation-utils.js';
 
-const MAX_ACTIVE_TRANSLATIONS = 100;
 const inlineTranslations = [];
 
-/**
- * Show inline translation
- * @param {string} translation - Translation text
- * @param {Range} wordRange - Range of original word
- * @param {string} originalText - Original word text
- * @param {string} darkMode - Dark mode setting ('auto', 'light', 'dark')
- * @param {Object} styleSettings - Custom style settings (bgColor, textColor, bgOpacity)
- */
-export function showInlineTranslation(translation, wordRange, originalText = '', darkMode = 'auto', styleSettings = null) {
-  if (inlineTranslations.length >= MAX_ACTIVE_TRANSLATIONS) {
+function enforceTranslationLimit() {
+  if (inlineTranslations.length >= CONFIG.ui.maxActiveTranslations) {
     const oldest = inlineTranslations.shift();
     removeInlineTranslation(oldest);
   }
+}
 
-  // Check for and remove encompassed translations before wrapping
-  const encompassedTranslations = findEncompassedTranslations(wordRange);
-  if (encompassedTranslations.length > 0) {
-    // Remove all encompassed translations
-    encompassedTranslations.forEach(t => removeInlineTranslation(t));
-  }
-
+function wrapWordInElement(wordRange) {
   const wrapper = document.createElement('span');
   wrapper.className = 'ct-word-wrapper';
 
-  try {
-    // Use extractContents() instead of surroundContents() for better compatibility
-    // This handles partial element selections that surroundContents() cannot
-    const contents = wordRange.extractContents();
-    wrapper.appendChild(contents);
-    wordRange.insertNode(wrapper);
-  } catch (e) {
-    console.error('[ContextTranslator] Failed to wrap word:', e);
-    return;
+  const contents = wordRange.extractContents();
+  wrapper.appendChild(contents);
+  wordRange.insertNode(wrapper);
+
+  return wrapper;
+}
+
+function createTranslationElement(translation, darkMode, styleSettings) {
+  const inline = document.createElement('span');
+  inline.className = 'ct-inline-translation';
+
+  if (styleSettings) {
+    applyCustomStyling(inline, styleSettings);
+  } else if (isDarkMode(darkMode)) {
+    inline.classList.add('ct-dark-mode');
   }
 
+  inline.textContent = translation;
+
+  return inline;
+}
+
+function attachRemoveHandler(element, inlineData) {
+  element.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    removeInlineTranslation(inlineData);
+  });
+}
+
+function tryMergeWithAdjacent(wrapper, originalText, translation, darkMode, styleSettings) {
   const adjacent = findAdjacentTranslations(wrapper);
 
   if (adjacent.left.length > 0 || adjacent.right.length > 0) {
@@ -61,23 +67,45 @@ export function showInlineTranslation(translation, wordRange, originalText = '',
       translation: translation
     };
 
-    const mergedData = mergeTranslations(currentTranslation, adjacent.left, adjacent.right, darkMode, styleSettings);
-    if (mergedData) {
-      return;
-    }
+    return mergeTranslations(currentTranslation, adjacent.left, adjacent.right, darkMode, styleSettings);
   }
 
-  const inline = document.createElement('span');
-  inline.className = 'ct-inline-translation';
+  return null;
+}
 
-  // Apply custom styling if provided
-  if (styleSettings) {
-    applyCustomStyling(inline, styleSettings);
-  } else if (isDarkMode(darkMode)) {
-    inline.classList.add('ct-dark-mode');
+/**
+ * Show inline translation
+ * @param {string} translation - Translation text
+ * @param {Range} wordRange - Range of original word
+ * @param {string} originalText - Original word text
+ * @param {string} darkMode - Dark mode setting ('auto', 'light', 'dark')
+ * @param {Object} styleSettings - Custom style settings (bgColor, textColor, bgOpacity)
+ */
+export function showInlineTranslation(translation, wordRange, originalText = '', darkMode = 'auto', styleSettings = null) {
+  if (!translation || typeof translation !== 'string') {
+    console.warn('[ContextTranslator] Invalid translation text provided to inline display');
+    return;
   }
 
-  inline.textContent = translation;
+  enforceTranslationLimit();
+
+  const encompassedTranslations = findEncompassedTranslations(wordRange);
+  encompassedTranslations.forEach(t => removeInlineTranslation(t));
+
+  let wrapper;
+  try {
+    wrapper = wrapWordInElement(wordRange);
+  } catch (e) {
+    console.error('[ContextTranslator] Failed to wrap word:', e);
+    return;
+  }
+
+  const mergedData = tryMergeWithAdjacent(wrapper, originalText, translation, darkMode, styleSettings);
+  if (mergedData) {
+    return;
+  }
+
+  const inline = createTranslationElement(translation, darkMode, styleSettings);
 
   const inlineData = {
     wrapper,
@@ -86,11 +114,7 @@ export function showInlineTranslation(translation, wordRange, originalText = '',
     translation: translation
   };
 
-  inline.addEventListener('click', (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    removeInlineTranslation(inlineData);
-  });
+  attachRemoveHandler(inline, inlineData);
 
   wrapper.appendChild(inline);
   inlineTranslations.push(inlineData);
@@ -372,4 +396,9 @@ export function removeMergedTranslation(mergedData) {
 export function clearAllInlineTranslations() {
   const translations = [...inlineTranslations];
   translations.forEach(t => removeInlineTranslation(t));
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', clearAllInlineTranslations);
+  window.addEventListener('pagehide', clearAllInlineTranslations);
 }

@@ -144,4 +144,5 @@ export class LanguageManager {
   }
 }
 
-export const languageManager = new LanguageManager();
+// Singleton export removed - use dependency injection
+// Instantiate LanguageManager at entry points and pass as dependency

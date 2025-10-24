@@ -189,7 +189,7 @@ function bindEvents() {
   // Cache and translations
   elements.clearCacheBtn.addEventListener('click', async () => {
     const originalText = elements.clearCacheBtn.textContent;
-    const result = await controller.clearCache();
+    await controller.clearCache();
 
     // Update button text based on result
     if (uiStateManager.getButtonText('clearCache')) {
@@ -211,7 +211,7 @@ function bindEvents() {
   // Language management
   elements.saveLanguageBtn.addEventListener('click', async () => {
     const languageName = elements.newLanguageInput.value.trim();
-    if (!languageName) return;
+    if (!languageName) {return;}
 
     const result = await controller.addLanguage(languageName);
 
@@ -254,7 +254,7 @@ function updateScreens() {
  */
 function populateSettings() {
   const settings = controller.getCurrentSettings();
-  if (!settings) return;
+  if (!settings) {return;}
 
   elements.sourceLang.value = settings.sourceLang || 'German';
   elements.targetLang.value = settings.targetLang || 'English';
@@ -287,7 +287,7 @@ function populateLanguages() {
   const languages = controller.getLanguages();
   const settings = controller.getCurrentSettings();
 
-  if (languages.length === 0) return;
+  if (languages.length === 0) {return;}
 
   elements.sourceLang.innerHTML = '';
   elements.targetLang.innerHTML = '';
@@ -394,7 +394,7 @@ function updateColorPreview(element, color) {
  */
 function applyDarkModeToPopup() {
   const settings = controller.getCurrentSettings();
-  if (!settings) return;
+  if (!settings) {return;}
 
   const isDark = settingsService.applyDarkMode(settings.darkMode);
   if (isDark) {

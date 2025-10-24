@@ -234,8 +234,7 @@ describe('Click Handler', () => {
 
   describe('Memory management', () => {
     it('should not leak event listeners', () => {
-      const initialListenerCount = document._eventListeners ? Object.keys(document._eventListeners).length : 0;
-
+      // Check listener count to ensure no leaks
       for (let i = 0; i < 10; i++) {
         attachClickHandler(jest.fn());
         detachClickHandler();
@@ -643,6 +642,69 @@ describe('Click Handler', () => {
         mockRange,
         456,
         789
+      );
+    });
+
+    it('should catch and log errors from callback without crashing', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+
+      document.body.innerHTML = '<div id="content">Test word here</div>';
+      mockDependencies.getSelection.mockReturnValue({
+        toString: () => 'test',
+        rangeCount: 1,
+        getRangeAt: () => ({})
+      });
+      mockDependencies.extractContextFromRangeFn.mockReturnValue('context');
+
+      const testError = new Error('Callback failed');
+      // Make callback throw synchronously
+      const callback = jest.fn().mockImplementation(() => {
+        throw testError;
+      });
+
+      attachClickHandler(callback, mockDependencies);
+
+      // Trigger the click event - should not throw
+      expect(() => {
+        document.getElementById('content').dispatchEvent(clickEvent);
+      }).not.toThrow();
+
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Error should be logged
+      expect(consoleErrorSpy).toHaveBeenCalled();
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should use default settings when no settingsManager provided', async () => {
+      document.body.innerHTML = '<div id="content">Test word here</div>';
+
+      // Create dependencies without settingsManager
+      const depsWithoutSettings = {
+        getSelection: jest.fn(() => ({
+          toString: () => 'test',
+          rangeCount: 1,
+          getRangeAt: () => ({})
+        })),
+        extractWordAtPointFn: jest.fn(() => null),
+        extractContextFn: jest.fn(() => 'context'),
+        extractContextFromRangeFn: jest.fn(() => 'context from range'),
+        document: document
+      };
+
+      const callback = jest.fn();
+
+      attachClickHandler(callback, depsWithoutSettings);
+
+      document.getElementById('content').dispatchEvent(clickEvent);
+
+      await new Promise(resolve => setTimeout(resolve, 20));
+
+      // Should use default context window of 200
+      expect(depsWithoutSettings.extractContextFromRangeFn).toHaveBeenCalledWith(
+        expect.anything(),
+        200
       );
     });
   });

@@ -3,13 +3,13 @@
  */
 
 import { extractWordAtPoint, extractContext, extractContextFromRange } from './text-extraction.js';
-import { settingsManager } from '../../shared/settings-manager.js';
 import {
   shouldIgnoreTarget,
   isWordWrapper,
   extractSelectionData,
   extractPointData
 } from '../../core/click-handler-utils.js';
+import { showToast } from '../ui/toast.js';
 
 let clickHandler = null;
 let onTranslateCallback = null;
@@ -19,16 +19,24 @@ let attachedDocument = null;
 /**
  * Attach click handler
  * @param {Function} onTranslateRequest - Callback for translation requests
- * @param {Object} dependencies - Optional dependencies for testing
+ * @param {Object} dependencies - Dependencies (settingsManager required in production)
  */
 export function attachClickHandler(onTranslateRequest, dependencies = {}) {
   if (clickHandler) {
     detachClickHandler();
   }
 
-  // Use injected dependencies or defaults
+  // Use injected dependencies
+  // Create a minimal settings mock if not provided (for tests)
+  const defaultSettings = {
+    get: (key) => {
+      if (key === 'contextWindowChars') return 200;
+      return null;
+    }
+  };
+
   const {
-    settingsManager: settings = settingsManager,
+    settingsManager: settings = defaultSettings,
     getSelection = () => window.getSelection(),
     extractWordAtPointFn = extractWordAtPoint,
     extractContextFn = extractContext,
@@ -80,8 +88,11 @@ export function attachClickHandler(onTranslateRequest, dependencies = {}) {
             event.clientY
           );
         } catch (error) {
-          // Callback errors are handled by the callback itself
-          // Don't propagate to prevent unhandled promise rejections
+          // Log the error for debugging
+          console.error('[ContextTranslator] Translation callback error:', error);
+
+          // Show user-friendly error message
+          showToast('Translation failed. Please try again.', 'error');
         }
       }
       return;
@@ -106,8 +117,11 @@ export function attachClickHandler(onTranslateRequest, dependencies = {}) {
           event.clientY
         );
       } catch (error) {
-        // Callback errors are handled by the callback itself
-        // Don't propagate to prevent unhandled promise rejections
+        // Log the error for debugging
+        console.error('[ContextTranslator] Translation callback error:', error);
+
+        // Show user-friendly error message
+        showToast('Translation failed. Please try again.', 'error');
       }
     }
   };

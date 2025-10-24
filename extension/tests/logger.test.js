@@ -351,6 +351,52 @@ describe('Logger', () => {
     });
   });
 
+  describe('Browser storage integration', () => {
+    it('should handle browser storage initialization when settings exist', async () => {
+      const mockBrowser = {
+        storage: {
+          local: {
+            get: jest.fn().mockResolvedValue({
+              settings: { enableLogging: false }
+            })
+          },
+          onChanged: {
+            addListener: jest.fn()
+          }
+        }
+      };
+
+      global.browser = mockBrowser;
+
+      // Re-import logger to trigger initialization
+      await import('../shared/logger.js?t=' + Date.now());
+
+      expect(mockBrowser.storage.local.get).toHaveBeenCalledWith('settings');
+    });
+
+    it('should handle browser storage initialization errors gracefully', async () => {
+      const mockBrowser = {
+        storage: {
+          local: {
+            get: jest.fn().mockRejectedValue(new Error('Storage error'))
+          }
+        }
+      };
+
+      global.browser = mockBrowser;
+
+      // Should not throw even if storage fails
+      await expect(import('../shared/logger.js?t=' + Date.now())).resolves.toBeDefined();
+    });
+
+    it('should handle missing browser API gracefully', () => {
+      delete global.browser;
+
+      // Logger should still work without browser API
+      expect(() => logger.info('test')).not.toThrow();
+    });
+  });
+
   describe('Edge cases', () => {
     it('should handle functions as arguments', () => {
       logger.setEnabled(true);

@@ -1,106 +1,31 @@
 /**
- * Background Service Worker - Entry point
- * Initializes cache and LLM client, listens for messages
- *
- * @module background/service-worker
+ * Service Worker Entry Point with Polyfill Support
+ * Loads webextension-polyfill for Chrome compatibility, then bootstraps main service worker
  */
 
-import { logger } from '../shared/logger.js';
-import { cacheManager } from './cache-manager.js';
-import { llmClient } from './llm-client.js';
-import { languageManager } from '../shared/language-manager.js';
-import { handleMessage } from './message-handler.js';
+// For Chrome browsers, load the polyfill to provide 'browser' API
+// Firefox has native 'browser' API support and will skip this
+(async () => {
+  if (typeof globalThis.browser === 'undefined' && typeof globalThis.chrome !== 'undefined') {
+    // Since we can't use importScripts in ES modules, we'll load the polyfill
+    // by fetching and evaluating it. The polyfill will set globalThis.browser.
+    try {
+      const polyfillPath = chrome.runtime.getURL('lib/external/browser-polyfill.js');
+      const response = await fetch(polyfillPath);
+      const polyfillCode = await response.text();
 
-/**
- * Initialize background service
- */
-async function initialize() {
-  logger.info('Context Translator background service initializing...');
+      // Use indirect eval to execute in global scope
+      (0, eval)(polyfillCode);
 
-  try {
-    // Initialize cache
-    await cacheManager.init();
-    logger.info('Cache initialized');
-
-    // Initialize language manager
-    await languageManager.init();
-    logger.info('Language manager initialized');
-
-    // Load settings to configure LLM client
-    const stored = await browser.storage.local.get('settings');
-    if (stored.settings) {
-      const { llmEndpoint, llmModel, useRateLimit } = stored.settings;
-      if (llmEndpoint) {
-        llmClient.configure(llmEndpoint, llmModel, useRateLimit);
-      }
-    }
-
-    logger.info('Context Translator background service ready');
-
-  } catch (error) {
-    logger.error('Initialization error:', error);
-  }
-}
-
-/**
- * Listen for settings changes
- */
-browser.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === 'local' && changes.settings) {
-    const newSettings = changes.settings.newValue;
-    if (newSettings && newSettings.llmEndpoint) {
-      llmClient.configure(newSettings.llmEndpoint, newSettings.llmModel, newSettings.useRateLimit);
-      logger.info('LLM client reconfigured from settings');
+      console.log('[ContextTranslator] WebExtension polyfill loaded for Chrome');
+    } catch (error) {
+      console.error('[ContextTranslator] Failed to load polyfill:', error);
+      // Fallback: use chrome API directly
+      globalThis.browser = globalThis.chrome;
+      console.warn('[ContextTranslator] Using chrome API as fallback');
     }
   }
-});
 
-/**
- * Listen for messages from content scripts
- */
-browser.runtime.onMessage.addListener(handleMessage);
-
-/**
- * Listen for keyboard commands
- */
-browser.commands.onCommand.addListener(async (command) => {
-  if (command === 'toggle-translator') {
-    const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-    if (tabs.length > 0) {
-      try {
-        await browser.tabs.sendMessage(tabs[0].id, { action: 'toggle' });
-        logger.debug('Toggle command sent to active tab');
-      } catch (error) {
-        logger.error('Failed to send toggle command:', error);
-      }
-    }
-  }
-});
-
-/**
- * Handle extension installation or update
- */
-browser.runtime.onInstalled.addListener((details) => {
-  logger.info('Extension installed/updated:', details.reason);
-
-  if (details.reason === 'install') {
-    // First installation
-    logger.info('First installation - welcome!');
-  } else if (details.reason === 'update') {
-    // Extension updated
-    logger.info('Extension updated to version:', browser.runtime.getManifest().version);
-  }
-});
-
-// Initialize on startup
-initialize();
-
-// Clean up on extension suspend (Firefox only)
-if (typeof browser !== 'undefined' && browser.runtime.onSuspend) {
-  browser.runtime.onSuspend.addListener(() => {
-    logger.info('Extension suspending, cleaning up');
-    cacheManager.close();
-  });
-}
-
-logger.info('Background service worker loaded');
+  // Now import the main service worker module
+  await import('./service-worker-main.js');
+})();

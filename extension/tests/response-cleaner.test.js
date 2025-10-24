@@ -4,6 +4,7 @@
 
 import { describe, test, expect } from '@jest/globals';
 import { cleanResponse, extractTranslation } from '../background/response-cleaner.js';
+import { TranslationError } from '../shared/errors.js';
 
 describe('cleanResponse', () => {
   test('should return trimmed text', () => {
@@ -13,14 +14,14 @@ describe('cleanResponse', () => {
   });
 
   test('should throw on empty input', () => {
-    expect(() => cleanResponse('', '')).toThrow('Invalid response: empty or non-string');
-    expect(() => cleanResponse('   ', '')).toThrow('Response is empty after cleaning');
+    expect(() => cleanResponse('', '')).toThrow(TranslationError);
+    expect(() => cleanResponse('   ', '')).toThrow(TranslationError);
   });
 
   test('should throw on non-string input', () => {
-    expect(() => cleanResponse(null, '')).toThrow('Invalid response: empty or non-string');
-    expect(() => cleanResponse(undefined, '')).toThrow('Invalid response: empty or non-string');
-    expect(() => cleanResponse(123, '')).toThrow('Invalid response: empty or non-string');
+    expect(() => cleanResponse(null, '')).toThrow(TranslationError);
+    expect(() => cleanResponse(undefined, '')).toThrow(TranslationError);
+    expect(() => cleanResponse(123, '')).toThrow(TranslationError);
   });
 
   test('should remove "Translation:" prefix', () => {
@@ -184,24 +185,24 @@ describe('extractTranslation', () => {
   });
 
   test('should throw on missing response', () => {
-    expect(() => extractTranslation(null, 'hello')).toThrow('Invalid response format: missing choices array');
-    expect(() => extractTranslation(undefined, 'hello')).toThrow('Invalid response format: missing choices array');
+    expect(() => extractTranslation(null, 'hello')).toThrow(TranslationError);
+    expect(() => extractTranslation(undefined, 'hello')).toThrow(TranslationError);
   });
 
   test('should throw on missing choices', () => {
-    expect(() => extractTranslation({}, 'hello')).toThrow('Invalid response format: missing choices array');
+    expect(() => extractTranslation({}, 'hello')).toThrow(TranslationError);
   });
 
   test('should throw on non-array choices', () => {
     const response = { choices: 'not-array' };
 
-    expect(() => extractTranslation(response, 'hello')).toThrow('Invalid response format: missing choices array');
+    expect(() => extractTranslation(response, 'hello')).toThrow(TranslationError);
   });
 
   test('should throw on empty choices array', () => {
     const response = { choices: [] };
 
-    expect(() => extractTranslation(response, 'hello')).toThrow('Invalid response format: empty choices array');
+    expect(() => extractTranslation(response, 'hello')).toThrow(TranslationError);
   });
 
   test('should throw on missing message', () => {
@@ -209,7 +210,7 @@ describe('extractTranslation', () => {
       choices: [{}]
     };
 
-    expect(() => extractTranslation(response, 'hello')).toThrow('Invalid response format: missing message content');
+    expect(() => extractTranslation(response, 'hello')).toThrow(TranslationError);
   });
 
   test('should throw on missing content', () => {
@@ -219,7 +220,7 @@ describe('extractTranslation', () => {
       ]
     };
 
-    expect(() => extractTranslation(response, 'hello')).toThrow('Invalid response format: missing message content');
+    expect(() => extractTranslation(response, 'hello')).toThrow(TranslationError);
   });
 
   test('should clean the extracted content', () => {

@@ -2,9 +2,14 @@
 
 ![Version](https://img.shields.io/github/v/release/bikemazzell/context-translator?label=version)
 ![Firefox](https://img.shields.io/badge/Firefox-MV3-orange)
+![Chrome](https://img.shields.io/badge/Chrome-MV3-green)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-This is a browser (currently: Firefox) extension for context-aware translation using local LLM server. Activate it, choose a lanugage pair, and click on words or phrases to trasnlate them directly on web pages with context-aware understanding. Great for learning new languages!
+This is a browser extension for context-aware translation using local LLM server. Activate it, choose a language pair, and click on words or phrases to translate them directly on web pages with context-aware understanding. Great for learning new languages!
+
+**Browser Support:**
+- Firefox 112+ (native support)
+- Chrome/Chromium (via webextension-polyfill)
 
 ## Overview
 
@@ -28,7 +33,7 @@ Also, unlike paid offerings, this is free and open source. If you have ideas how
 
 ```mermaid
 graph LR
-    A[Web Page] --> B[Firefox Extension]
+    A[Web Page] --> B[Browser Extension]
     B --> C[IndexedDB Cache]
     B --> D[Local LLM Server]
     D --> E[LMStudio/Ollama/etc]
@@ -42,12 +47,20 @@ The extension runs entirely in your browser, communicating only with your local 
 
 ## Installation
 
-### Quick Install
+### Firefox
 
 1. Download the latest `.xpi` from [Releases](../../releases)
 2. Open Firefox and navigate to `about:addons`
 3. Click the gear icon → "Install Add-on From File"
 4. Select the downloaded `.xpi` file
+
+### Chrome/Chromium
+
+1. Download the latest release from [Releases](../../releases)
+2. Extract the archive to a folder
+3. Open Chrome and navigate to `chrome://extensions/`
+4. Enable "Developer mode" (toggle in top right)
+5. Click "Load unpacked" and select the extracted folder
 
 ### From Source
 

@@ -233,7 +233,7 @@ describe('Click Handler Utils', () => {
       const mockSelection = {
         toString: () => 'hello',
         rangeCount: 1,
-        getRangeAt: (index) => mockRange
+        getRangeAt: (_index) => mockRange
       };
       const mockExtractContext = jest.fn().mockReturnValue('context text');
 

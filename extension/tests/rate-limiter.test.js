@@ -54,12 +54,7 @@ describe('RateLimiter', () => {
 
       await limiter.acquire();
 
-      try {
-        await limiter.acquire();
-        fail('Should have thrown');
-      } catch (error) {
-        expect(error.message).toMatch(/Please wait \d+ seconds/);
-      }
+      await expect(limiter.acquire()).rejects.toThrow(/Please wait \d+ seconds/);
     });
 
     test('should clean up old requests', async () => {

@@ -4,12 +4,48 @@
 
 import { describe, test, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import {
+  cleanWhitespace,
   sanitizeText,
   hashString,
+  secureHash,
+  generateHMACKey,
+  generateHMAC,
+  verifyHMAC,
   truncateText,
   isDarkMode,
   debounce
 } from '../shared/utils.js';
+
+describe('cleanWhitespace', () => {
+  test('should return empty string for null', () => {
+    expect(cleanWhitespace(null)).toBe('');
+  });
+
+  test('should return empty string for undefined', () => {
+    expect(cleanWhitespace(undefined)).toBe('');
+  });
+
+  test('should return empty string for non-string', () => {
+    expect(cleanWhitespace(123)).toBe('');
+    expect(cleanWhitespace({})).toBe('');
+    expect(cleanWhitespace([])).toBe('');
+  });
+
+  test('should trim whitespace', () => {
+    expect(cleanWhitespace('  hello  ')).toBe('hello');
+    expect(cleanWhitespace('\n\nhello\n\n')).toBe('hello');
+  });
+
+  test('should preserve internal newlines and tabs', () => {
+    expect(cleanWhitespace('line1\nline2')).toBe('line1\nline2');
+    expect(cleanWhitespace('hello\tworld')).toBe('hello\tworld');
+  });
+
+  test('should remove control characters', () => {
+    const withControl = 'hello\x00\x01\x02world';
+    expect(cleanWhitespace(withControl)).toBe('helloworld');
+  });
+});
 
 describe('sanitizeText', () => {
   test('should return empty string for null', () => {
@@ -189,7 +225,7 @@ describe('isDarkMode', () => {
 
   test('should detect light preference in auto mode', () => {
     global.window = {
-      matchMedia: (query) => ({
+      matchMedia: (_query) => ({
         matches: false
       })
     };
@@ -301,5 +337,72 @@ describe('debounce', () => {
 
     jest.advanceTimersByTime(50);
     expect(fn).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('secureHash', () => {
+  test('should return a string hash', async () => {
+    const hash = await secureHash('hello');
+    expect(typeof hash).toBe('string');
+    expect(hash.length).toBeGreaterThan(0);
+  });
+
+  test('should return same hash for same input', async () => {
+    const hash1 = await secureHash('hello');
+    const hash2 = await secureHash('hello');
+    expect(hash1).toBe(hash2);
+  });
+
+  test('should return different hashes for different inputs', async () => {
+    const hash1 = await secureHash('hello');
+    const hash2 = await secureHash('world');
+    expect(hash1).not.toBe(hash2);
+  });
+
+  test('should handle empty string', async () => {
+    const hash = await secureHash('');
+    expect(typeof hash).toBe('string');
+  });
+
+  test('should handle unicode', async () => {
+    const hash = await secureHash('你好世界');
+    expect(typeof hash).toBe('string');
+    expect(hash.length).toBeGreaterThan(0);
+  });
+});
+
+describe('generateHMACKey', () => {
+  test('should return null in Node.js environment', async () => {
+    const key = await generateHMACKey();
+    expect(key).toBeNull();
+  });
+});
+
+describe('generateHMAC', () => {
+  test('should return null with null key', async () => {
+    const signature = await generateHMAC(null, 'test data');
+    expect(signature).toBeNull();
+  });
+
+  test('should return null in Node.js environment', async () => {
+    const signature = await generateHMAC({}, 'test data');
+    expect(signature).toBeNull();
+  });
+});
+
+describe('verifyHMAC', () => {
+  test('should return false with null key', async () => {
+    const result = await verifyHMAC(null, 'test data', 'signature');
+    expect(result).toBe(false);
+  });
+
+  test('should return false with null signature', async () => {
+    const result = await verifyHMAC({}, 'test data', null);
+    expect(result).toBe(false);
+  });
+
+  test('should return false in Node.js environment', async () => {
+    const result = await verifyHMAC({}, 'test data', 'abc123');
+    expect(result).toBe(false);
   });
 });

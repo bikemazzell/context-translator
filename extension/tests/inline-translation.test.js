@@ -2,7 +2,6 @@
  * @jest-environment jsdom
  */
 
-import { jest } from '@jest/globals';
 import { clearAllInlineTranslations } from '../content/ui/inline-translation.js';
 
 describe('Inline Translation', () => {

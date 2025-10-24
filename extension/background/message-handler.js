@@ -6,9 +6,20 @@
  */
 
 import { logger } from '../shared/logger.js';
-import { cacheManager } from './cache-manager.js';
-import { llmClient } from './llm-client.js';
-import { languageManager } from '../shared/language-manager.js';
+import { CONFIG } from '../shared/config.js';
+import { ValidationError } from '../shared/errors.js';
+
+let cacheManager = null;
+let llmClient = null;
+let languageManager = null;
+
+const pendingRequests = new Map();
+
+export function configureDependencies(cache, llm, langManager) {
+  cacheManager = cache;
+  llmClient = llm;
+  languageManager = langManager;
+}
 
 /**
  * Handle translation request
@@ -18,19 +29,25 @@ import { languageManager } from '../shared/language-manager.js';
 async function handleTranslate(data) {
   const { text, source_lang, target_lang, context, use_cache } = data;
 
-  // Validate inputs
   if (!text || !source_lang || !target_lang) {
-    throw new Error('Missing required parameters');
+    throw new ValidationError('Missing required parameters', 'translation_request', { text, source_lang, target_lang });
   }
 
-  if (text.length > 500) {
-    throw new Error('Text too long (max 500 characters)');
+  if (text.length > CONFIG.translation.maxTextLength) {
+    throw new ValidationError(
+      `Text too long (max ${CONFIG.translation.maxTextLength} characters)`,
+      'text',
+      `${text.length} characters`
+    );
   }
 
   try {
+    const cacheKey = use_cache !== false
+      ? await cacheManager.generateKey(text, source_lang, target_lang, context)
+      : null;
+
     // Check cache first
-    if (use_cache !== false) {
-      const cacheKey = cacheManager.generateKey(text, source_lang, target_lang, context);
+    if (cacheKey) {
       const cached = await cacheManager.get(cacheKey);
 
       if (cached) {
@@ -42,21 +59,42 @@ async function handleTranslate(data) {
       }
     }
 
-    // Request translation from LLM
-    logger.info('Cache miss - requesting translation from LLM server');
-    const result = await llmClient.translate(text, source_lang, target_lang, context);
-
-    // Store in cache
-    if (use_cache !== false) {
-      const cacheKey = cacheManager.generateKey(text, source_lang, target_lang, context);
-      await cacheManager.set(cacheKey, text, source_lang, target_lang, result.translation, context);
+    // Check for pending request (request deduplication)
+    if (cacheKey && pendingRequests.has(cacheKey)) {
+      logger.info('Duplicate request detected - waiting for existing request');
+      return await pendingRequests.get(cacheKey);
     }
 
-    return {
-      translation: result.translation,
-      cached: false,
-      debugInfo: result.debugInfo // Include debug info for content script logging
-    };
+    // Create new translation request
+    const translationPromise = (async () => {
+      try {
+        logger.info('Cache miss - requesting translation from LLM server');
+        const result = await llmClient.translate(text, source_lang, target_lang, context);
+
+        // Store in cache
+        if (cacheKey) {
+          await cacheManager.set(cacheKey, text, source_lang, target_lang, result.translation, context);
+        }
+
+        return {
+          translation: result.translation,
+          cached: false,
+          debugInfo: result.debugInfo
+        };
+      } finally {
+        // Clean up pending request
+        if (cacheKey) {
+          pendingRequests.delete(cacheKey);
+        }
+      }
+    })();
+
+    // Store pending request
+    if (cacheKey) {
+      pendingRequests.set(cacheKey, translationPromise);
+    }
+
+    return await translationPromise;
 
   } catch (error) {
     logger.error('Translation error:', error);
@@ -171,6 +209,36 @@ async function handleCacheStats() {
 }
 
 /**
+ * Validate message sender
+ * @param {Object} sender - Message sender info
+ * @returns {boolean} True if sender is valid
+ */
+function validateSender(sender) {
+  // Check if sender has required properties
+  if (!sender || !sender.id) {
+    logger.warn('Message received without sender ID');
+    return false;
+  }
+
+  // Validate sender is this extension (not from another extension or external source)
+  if (typeof browser !== 'undefined' && browser.runtime && browser.runtime.id) {
+    if (sender.id !== browser.runtime.id) {
+      logger.warn('Message received from different extension:', sender.id);
+      return false;
+    }
+  }
+
+  // Additional validation: check if sender has tab info (content script)
+  // or is from the extension itself (popup, options page)
+  if (!sender.tab && !sender.url) {
+    logger.warn('Message received without tab or URL info');
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Main message router
  * @param {Object} message - Message from content script
  * @param {Object} sender - Message sender info
@@ -178,7 +246,14 @@ async function handleCacheStats() {
  * @returns {boolean} True if response will be sent asynchronously
  */
 export function handleMessage(message, sender, sendResponse) {
-  logger.debug('Received message:', message.type);
+  logger.debug('Received message:', message.type, 'from:', sender.id);
+
+  // Validate sender origin
+  if (!validateSender(sender)) {
+    logger.error('Invalid message sender:', sender);
+    sendResponse({ success: false, error: 'Invalid sender' });
+    return false;
+  }
 
   // Route message to appropriate handler
   const handlers = {

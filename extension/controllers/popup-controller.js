@@ -56,7 +56,7 @@ export class PopupController {
 
       // Check translator status
       await this.checkTranslatorStatus();
-    } catch (error) {
+    } catch {
       // Handle initialization errors gracefully
     }
   }
@@ -70,7 +70,7 @@ export class PopupController {
       if (tabs.length > 0) {
         await this.messenger.sendTabMessage(tabs[0].id, { action: 'getStatus' });
       }
-    } catch (error) {
+    } catch {
       // Tab might not have content script loaded
     }
   }
@@ -169,7 +169,7 @@ export class PopupController {
       if (tabs.length > 0) {
         await this.messenger.sendTabMessage(tabs[0].id, { action: 'toggle' });
       }
-    } catch (error) {
+    } catch {
       // Handle errors gracefully
     }
   }
@@ -220,7 +220,7 @@ export class PopupController {
       if (tabs.length > 0) {
         await this.messenger.sendTabMessage(tabs[0].id, { action: 'clearTranslations' });
       }
-    } catch (error) {
+    } catch {
       // Handle errors gracefully
     }
   }

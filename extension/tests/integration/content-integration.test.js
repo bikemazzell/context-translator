@@ -10,7 +10,7 @@
 import { jest } from '@jest/globals';
 import { ContentController } from '../../controllers/content-controller.js';
 import { TranslationService } from '../../services/translation-service.js';
-import { settingsManager } from '../../shared/settings-manager.js';
+import { SettingsManager } from '../../shared/settings-manager.js';
 import { logger } from '../../shared/logger.js';
 import { showToast } from '../../content/ui/toast.js';
 import { showTooltip } from '../../content/ui/tooltip.js';
@@ -21,6 +21,7 @@ describe('Content Script Integration Tests', () => {
   let controller;
   let mockMessenger;
   let mockBrowser;
+  let settingsManager;
 
   beforeEach(async () => {
     document.body.innerHTML = '';
@@ -48,7 +49,8 @@ describe('Content Script Integration Tests', () => {
       }
     });
 
-    // Load settings
+    // Instantiate settings manager at describe scope
+    settingsManager = new SettingsManager();
     await settingsManager.load();
 
     // Create real translation service with mocked messenger
@@ -62,9 +64,9 @@ describe('Content Script Integration Tests', () => {
       clearAllInlineTranslations
     };
 
-    // Create real click handler wrapper
+    // Create real click handler wrapper with dependency injection
     const clickHandler = {
-      attach: attachClickHandler,
+      attach: (callback) => attachClickHandler(callback, { settingsManager }),
       detach: detachClickHandler
     };
 

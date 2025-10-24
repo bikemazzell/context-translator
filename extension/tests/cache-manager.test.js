@@ -3,9 +3,9 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { CacheManager } from '../background/cache-manager.js';
+import { TranslationCache as CacheManager } from '../lib/translation/translation-cache.js';
+import { logger } from '../shared/logger.js';
 import { CONFIG } from '../shared/config.js';
-import { hashString } from '../shared/utils.js';
 
 describe('CacheManager', () => {
   let manager;
@@ -69,7 +69,7 @@ describe('CacheManager', () => {
       })
     };
 
-    manager = new CacheManager();
+    manager = new CacheManager(logger);
   });
 
   afterEach(() => {
@@ -147,32 +147,34 @@ describe('CacheManager', () => {
   });
 
   describe('generateKey', () => {
-    test('should generate key from parameters', () => {
-      const key = manager.generateKey('hello', 'en', 'es', 'greeting');
-      const expectedKey = hashString('hello|en|es|greeting');
+    test('should generate key from parameters', async () => {
+      const key = await manager.generateKey('hello', 'en', 'es', 'greeting');
 
-      expect(key).toBe(expectedKey);
+      expect(typeof key).toBe('string');
+      expect(key.length).toBeGreaterThan(0);
+
+      // Verify same inputs produce same key
+      const key2 = await manager.generateKey('hello', 'en', 'es', 'greeting');
+      expect(key).toBe(key2);
+    });
+
+    test('should handle null context', async () => {
+      const key = await manager.generateKey('hello', 'en', 'es', null);
+
       expect(typeof key).toBe('string');
       expect(key.length).toBeGreaterThan(0);
     });
 
-    test('should handle null context', () => {
-      const key = manager.generateKey('hello', 'en', 'es', null);
-      const expectedKey = hashString('hello|en|es|');
-
-      expect(key).toBe(expectedKey);
-    });
-
-    test('should generate same key for same inputs', () => {
-      const key1 = manager.generateKey('hello', 'en', 'es', 'greeting');
-      const key2 = manager.generateKey('hello', 'en', 'es', 'greeting');
+    test('should generate same key for same inputs', async () => {
+      const key1 = await manager.generateKey('hello', 'en', 'es', 'greeting');
+      const key2 = await manager.generateKey('hello', 'en', 'es', 'greeting');
 
       expect(key1).toBe(key2);
     });
 
-    test('should generate different keys for different inputs', () => {
-      const key1 = manager.generateKey('hello', 'en', 'es', null);
-      const key2 = manager.generateKey('goodbye', 'en', 'es', null);
+    test('should generate different keys for different inputs', async () => {
+      const key1 = await manager.generateKey('hello', 'en', 'es', null);
+      const key2 = await manager.generateKey('goodbye', 'en', 'es', null);
 
       expect(key1).not.toBe(key2);
     });
@@ -194,7 +196,7 @@ describe('CacheManager', () => {
         const request = { result: null, error: null, onsuccess: null, onerror: null };
         Promise.resolve().then(() => {
           request.result = entry;
-          if (request.onsuccess) request.onsuccess();
+          if (request.onsuccess) {request.onsuccess();}
         });
         return request;
       });
@@ -210,7 +212,7 @@ describe('CacheManager', () => {
         const request = { result: null, error: null, onsuccess: null, onerror: null };
         Promise.resolve().then(() => {
           request.result = null;
-          if (request.onsuccess) request.onsuccess();
+          if (request.onsuccess) {request.onsuccess();}
         });
         return request;
       });
@@ -232,7 +234,7 @@ describe('CacheManager', () => {
         const request = { result: null, error: null, onsuccess: null, onerror: null };
         Promise.resolve().then(() => {
           request.result = entry;
-          if (request.onsuccess) request.onsuccess();
+          if (request.onsuccess) {request.onsuccess();}
         });
         return request;
       });
@@ -258,7 +260,7 @@ describe('CacheManager', () => {
         const request = { result: null, error: null, onsuccess: null, onerror: null };
         Promise.resolve().then(() => {
           request.result = entry;
-          if (request.onsuccess) request.onsuccess();
+          if (request.onsuccess) {request.onsuccess();}
         });
         return request;
       });
@@ -273,7 +275,7 @@ describe('CacheManager', () => {
         const request = { result: null, error: null, onsuccess: null, onerror: null };
         Promise.resolve().then(() => {
           request.error = new Error('Get failed');
-          if (request.onerror) request.onerror();
+          if (request.onerror) {request.onerror();}
         });
         return request;
       });
@@ -291,7 +293,7 @@ describe('CacheManager', () => {
       mockStore.put.mockImplementation(() => {
         const request = { onsuccess: null, onerror: null };
         Promise.resolve().then(() => {
-          if (request.onsuccess) request.onsuccess();
+          if (request.onsuccess) {request.onsuccess();}
         });
         return request;
       });
@@ -317,7 +319,7 @@ describe('CacheManager', () => {
       mockStore.put.mockImplementation(() => {
         const request = { onsuccess: null, onerror: null };
         Promise.resolve().then(() => {
-          if (request.onsuccess) request.onsuccess();
+          if (request.onsuccess) {request.onsuccess();}
         });
         return request;
       });
@@ -334,7 +336,7 @@ describe('CacheManager', () => {
         const request = { onsuccess: null, onerror: null, error: null };
         Promise.resolve().then(() => {
           request.error = new Error('Put failed');
-          if (request.onerror) request.onerror();
+          if (request.onerror) {request.onerror();}
         });
         return request;
       });
@@ -348,7 +350,7 @@ describe('CacheManager', () => {
       mockStore.put.mockImplementation(() => {
         const request = { onsuccess: null, onerror: null };
         Promise.resolve().then(() => {
-          if (request.onsuccess) request.onsuccess();
+          if (request.onsuccess) {request.onsuccess();}
         });
         return request;
       });
@@ -374,7 +376,7 @@ describe('CacheManager', () => {
       mockStore.delete.mockImplementation(() => {
         const request = { onsuccess: null, onerror: null };
         Promise.resolve().then(() => {
-          if (request.onsuccess) request.onsuccess();
+          if (request.onsuccess) {request.onsuccess();}
         });
         return request;
       });
@@ -389,7 +391,7 @@ describe('CacheManager', () => {
         const request = { onsuccess: null, onerror: null, error: null };
         Promise.resolve().then(() => {
           request.error = new Error('Delete failed');
-          if (request.onerror) request.onerror();
+          if (request.onerror) {request.onerror();}
         });
         return request;
       });
@@ -407,7 +409,7 @@ describe('CacheManager', () => {
       mockStore.clear.mockImplementation(() => {
         const request = { onsuccess: null, onerror: null };
         Promise.resolve().then(() => {
-          if (request.onsuccess) request.onsuccess();
+          if (request.onsuccess) {request.onsuccess();}
         });
         return request;
       });
@@ -422,7 +424,7 @@ describe('CacheManager', () => {
         const request = { onsuccess: null, onerror: null, error: null };
         Promise.resolve().then(() => {
           request.error = new Error('Clear failed');
-          if (request.onerror) request.onerror();
+          if (request.onerror) {request.onerror();}
         });
         return request;
       });
@@ -441,7 +443,7 @@ describe('CacheManager', () => {
         const request = { result: null, error: null, onsuccess: null, onerror: null };
         Promise.resolve().then(() => {
           request.result = 42;
-          if (request.onsuccess) request.onsuccess();
+          if (request.onsuccess) {request.onsuccess();}
         });
         return request;
       });
@@ -457,7 +459,7 @@ describe('CacheManager', () => {
         const request = { result: null, error: null, onsuccess: null, onerror: null };
         Promise.resolve().then(() => {
           request.error = new Error('Count failed');
-          if (request.onerror) request.onerror();
+          if (request.onerror) {request.onerror();}
         });
         return request;
       });
@@ -479,31 +481,21 @@ describe('CacheManager', () => {
       expect(mockStore.index).not.toHaveBeenCalled();
     });
 
-    test.skip('should evict old entries when over limit', async () => {
+    test('should initiate eviction when over limit', async () => {
       jest.spyOn(manager, 'getSize').mockResolvedValue(CONFIG.cache.maxEntries + 10);
 
-      const mockCursor = {
-        delete: jest.fn(),
-        continue: jest.fn(),
-        value: { key: 'test-key', timestamp: Date.now() }
-      };
-
-      let cursorCallCount = 0;
+      let resolved = false;
       mockStore.index.mockReturnValue({
         openCursor: jest.fn(() => {
           const request = { onsuccess: null, onerror: null };
+
           Promise.resolve().then(() => {
-            cursorCallCount++;
-            if (cursorCallCount <= 10) {
-              if (request.onsuccess) {
-                request.onsuccess({ target: { result: mockCursor } });
-              }
-            } else {
-              if (request.onsuccess) {
-                request.onsuccess({ target: { result: null } });
-              }
+            if (request.onsuccess && !resolved) {
+              resolved = true;
+              request.onsuccess({ target: { result: null } });
             }
           });
+
           return request;
         })
       });
@@ -511,7 +503,7 @@ describe('CacheManager', () => {
       await manager.enforceLimit();
 
       expect(mockStore.index).toHaveBeenCalledWith('timestamp');
-      expect(mockCursor.delete).toHaveBeenCalled();
+      expect(mockStore.index().openCursor).toHaveBeenCalled();
     });
 
     test('should prevent concurrent eviction', async () => {
@@ -533,7 +525,7 @@ describe('CacheManager', () => {
           const request = { onsuccess: null, onerror: null, error: null };
           Promise.resolve().then(() => {
             request.error = new Error('Eviction failed');
-            if (request.onerror) request.onerror();
+            if (request.onerror) {request.onerror();}
           });
           return request;
         })
@@ -541,11 +533,6 @@ describe('CacheManager', () => {
 
       await expect(manager.enforceLimit()).rejects.toThrow('Eviction failed');
       expect(manager.evictionInProgress).toBe(false);
-    });
-
-    test.skip('should evict old entries when over limit', async () => {
-      // Complex IndexedDB cursor mocking - skipped for now
-      expect(true).toBe(true);
     });
   });
 
@@ -607,7 +594,7 @@ describe('CacheManager', () => {
         const request = { onsuccess: null, onerror: null };
         Promise.resolve().then(() => {
           storedEntry = entry;
-          if (request.onsuccess) request.onsuccess();
+          if (request.onsuccess) {request.onsuccess();}
         });
         return request;
       });
@@ -616,7 +603,7 @@ describe('CacheManager', () => {
         const request = { result: null, error: null, onsuccess: null, onerror: null };
         Promise.resolve().then(() => {
           request.result = storedEntry;
-          if (request.onsuccess) request.onsuccess();
+          if (request.onsuccess) {request.onsuccess();}
         });
         return request;
       });
@@ -625,7 +612,7 @@ describe('CacheManager', () => {
         const request = { onsuccess: null, onerror: null };
         Promise.resolve().then(() => {
           storedEntry = null;
-          if (request.onsuccess) request.onsuccess();
+          if (request.onsuccess) {request.onsuccess();}
         });
         return request;
       });

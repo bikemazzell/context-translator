@@ -6,6 +6,7 @@
  */
 
 import { logger } from '../shared/logger.js';
+import { TranslationError } from '../shared/errors.js';
 
 /**
  * Clean LLM response text
@@ -16,7 +17,10 @@ import { logger } from '../shared/logger.js';
  */
 export function cleanResponse(text, originalText = '') {
   if (!text || typeof text !== 'string') {
-    throw new Error('Invalid response: empty or non-string');
+    throw new TranslationError('Invalid LLM response: empty or non-string', {
+      responseType: typeof text,
+      originalText: originalText.substring(0, 100)
+    });
   }
 
   let cleaned = text.trim();
@@ -70,9 +74,11 @@ export function cleanResponse(text, originalText = '') {
   // Final trim
   cleaned = cleaned.trim();
 
-  // Validation
   if (!cleaned) {
-    throw new Error('Response is empty after cleaning');
+    throw new TranslationError('LLM response is empty after cleaning', {
+      originalText: originalText.substring(0, 100),
+      rawResponse: text.substring(0, 200)
+    });
   }
 
   if (cleaned.length > originalText.length * 5) {
@@ -91,17 +97,27 @@ export function cleanResponse(text, originalText = '') {
  */
 export function extractTranslation(response, originalText = '') {
   if (!response || !response.choices || !Array.isArray(response.choices)) {
-    throw new Error('Invalid response format: missing choices array');
+    throw new TranslationError('Invalid LLM response format: missing choices array', {
+      hasResponse: !!response,
+      hasChoices: !!response?.choices,
+      isArray: Array.isArray(response?.choices)
+    });
   }
 
   if (response.choices.length === 0) {
-    throw new Error('Invalid response format: empty choices array');
+    throw new TranslationError('Invalid LLM response format: empty choices array', {
+      responseKeys: Object.keys(response)
+    });
   }
 
   const choice = response.choices[0];
 
   if (!choice.message || !choice.message.content) {
-    throw new Error('Invalid response format: missing message content');
+    throw new TranslationError('Invalid LLM response format: missing message content', {
+      hasMessage: !!choice.message,
+      hasContent: !!choice.message?.content,
+      choiceKeys: Object.keys(choice)
+    });
   }
 
   const content = choice.message.content;

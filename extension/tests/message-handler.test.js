@@ -4,20 +4,48 @@
  */
 
 import { describe, test, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { handleMessage } from '../background/message-handler.js';
-import { cacheManager } from '../background/cache-manager.js';
-import { llmClient } from '../background/llm-client.js';
-import { languageManager } from '../shared/language-manager.js';
+import { handleMessage, configureDependencies } from '../background/message-handler.js';
+import { TranslationCache } from '../lib/translation/translation-cache.js';
+import { LLMClient } from '../lib/translation/llm-client.js';
+import { LanguageManager } from '../shared/language-manager.js';
+import { logger } from '../shared/logger.js';
+import { RateLimiter } from '../shared/rate-limiter.js';
 
 describe('message-handler', () => {
   let sendResponseMock;
   let consoleLogSpy;
   let consoleErrorSpy;
   let consoleDebugSpy;
+  let mockSender;
+  let cacheManager;
+  let llmClient;
+  let languageManager;
 
   beforeEach(() => {
     sendResponseMock = jest.fn();
     jest.clearAllMocks();
+
+    // Instantiate dependencies
+    cacheManager = new TranslationCache(logger);
+    const rateLimiter = new RateLimiter(10, 60000);
+    llmClient = new LLMClient(logger, rateLimiter);
+    languageManager = new LanguageManager();
+
+    // Configure dependencies for message handler (DI pattern)
+    configureDependencies(cacheManager, llmClient, languageManager);
+
+    // Mock sender object with valid extension ID
+    mockSender = {
+      id: 'test-extension-id',
+      tab: { id: 1, url: 'https://example.com' }
+    };
+
+    // Mock browser.runtime for sender validation
+    global.browser = {
+      runtime: {
+        id: 'test-extension-id'
+      }
+    };
 
     // Suppress console output
     consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
@@ -29,6 +57,7 @@ describe('message-handler', () => {
     consoleLogSpy.mockRestore();
     consoleErrorSpy.mockRestore();
     consoleDebugSpy.mockRestore();
+    delete global.browser;
   });
 
   describe('handleMessage - routing', () => {
@@ -48,7 +77,7 @@ describe('message-handler', () => {
       jest.spyOn(cacheManager, 'get').mockResolvedValue(null);
       jest.spyOn(cacheManager, 'set').mockResolvedValue(undefined);
 
-      const result = handleMessage(message, {}, sendResponseMock);
+      const result = handleMessage(message, mockSender, sendResponseMock);
 
       expect(result).toBe(true); // Async response
     });
@@ -56,7 +85,7 @@ describe('message-handler', () => {
     test('should handle getLanguages message type', () => {
       const message = { type: 'getLanguages' };
 
-      const result = handleMessage(message, {}, sendResponseMock);
+      const result = handleMessage(message, mockSender, sendResponseMock);
 
       expect(result).toBe(true);
     });
@@ -66,7 +95,7 @@ describe('message-handler', () => {
 
       jest.spyOn(llmClient, 'testConnection').mockResolvedValue(true);
 
-      const result = handleMessage(message, {}, sendResponseMock);
+      const result = handleMessage(message, mockSender, sendResponseMock);
 
       expect(result).toBe(true);
     });
@@ -76,7 +105,7 @@ describe('message-handler', () => {
 
       jest.spyOn(cacheManager, 'clear').mockResolvedValue(undefined);
 
-      const result = handleMessage(message, {}, sendResponseMock);
+      const result = handleMessage(message, mockSender, sendResponseMock);
 
       expect(result).toBe(true);
     });
@@ -86,7 +115,7 @@ describe('message-handler', () => {
 
       jest.spyOn(cacheManager, 'getStats').mockResolvedValue({ count: 10, size: 1024 });
 
-      const result = handleMessage(message, {}, sendResponseMock);
+      const result = handleMessage(message, mockSender, sendResponseMock);
 
       expect(result).toBe(true);
     });
@@ -94,7 +123,7 @@ describe('message-handler', () => {
     test('should reject unknown message type', () => {
       const message = { type: 'unknownType' };
 
-      const result = handleMessage(message, {}, sendResponseMock);
+      const result = handleMessage(message, mockSender, sendResponseMock);
 
       expect(result).toBe(false);
       expect(sendResponseMock).toHaveBeenCalledWith({
@@ -106,7 +135,7 @@ describe('message-handler', () => {
     test('should handle message with no data field', () => {
       const message = { type: 'getLanguages' };
 
-      const result = handleMessage(message, {}, sendResponseMock);
+      const result = handleMessage(message, mockSender, sendResponseMock);
 
       expect(result).toBe(true);
       // Should not throw, treats missing data as empty object
@@ -129,7 +158,7 @@ describe('message-handler', () => {
       jest.spyOn(cacheManager, 'get').mockResolvedValue('Hallo (cached)');
       const translateSpy = jest.spyOn(llmClient, 'translate');
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       // Wait for async handler
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -161,7 +190,7 @@ describe('message-handler', () => {
       jest.spyOn(llmClient, 'translate').mockResolvedValue({ translation: 'Hallo', debugInfo: {} });
       jest.spyOn(cacheManager, 'set').mockResolvedValue(undefined);
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -193,7 +222,7 @@ describe('message-handler', () => {
       const getSpy = jest.spyOn(cacheManager, 'get');
       const setSpy = jest.spyOn(cacheManager, 'set');
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -219,7 +248,7 @@ describe('message-handler', () => {
       jest.spyOn(llmClient, 'translate').mockResolvedValue({ translation: 'Bank', debugInfo: {} });
       jest.spyOn(cacheManager, 'set').mockResolvedValue(undefined);
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -248,7 +277,7 @@ describe('message-handler', () => {
         }
       };
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -267,7 +296,7 @@ describe('message-handler', () => {
         }
       };
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -286,7 +315,7 @@ describe('message-handler', () => {
         }
       };
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -307,7 +336,7 @@ describe('message-handler', () => {
         }
       };
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -332,7 +361,7 @@ describe('message-handler', () => {
       jest.spyOn(cacheManager, 'get').mockResolvedValue(null);
       jest.spyOn(llmClient, 'translate').mockRejectedValue(new Error('LLM service unavailable'));
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -357,7 +386,7 @@ describe('message-handler', () => {
       jest.spyOn(cacheManager, 'get').mockRejectedValue(new Error('Cache read error'));
       jest.spyOn(llmClient, 'translate').mockResolvedValue({ translation: 'Hallo', debugInfo: {} });
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -382,7 +411,7 @@ describe('message-handler', () => {
 
       jest.spyOn(llmClient, 'translate').mockResolvedValue({ translation: 'Translation', debugInfo: {} });
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -402,7 +431,7 @@ describe('message-handler', () => {
     test('should return supported languages', async () => {
       const message = { type: 'getLanguages' };
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -421,7 +450,7 @@ describe('message-handler', () => {
 
       jest.spyOn(llmClient, 'testConnection').mockResolvedValue(true);
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -440,7 +469,7 @@ describe('message-handler', () => {
 
       jest.spyOn(llmClient, 'testConnection').mockResolvedValue(false);
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -458,7 +487,7 @@ describe('message-handler', () => {
 
       jest.spyOn(llmClient, 'testConnection').mockRejectedValue(new Error('Connection timeout'));
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -479,7 +508,7 @@ describe('message-handler', () => {
 
       jest.spyOn(cacheManager, 'clear').mockResolvedValue(undefined);
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -497,7 +526,7 @@ describe('message-handler', () => {
 
       jest.spyOn(cacheManager, 'clear').mockRejectedValue(new Error('Database error'));
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -521,7 +550,7 @@ describe('message-handler', () => {
 
       jest.spyOn(cacheManager, 'getStats').mockResolvedValue(mockStats);
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -537,7 +566,7 @@ describe('message-handler', () => {
 
       jest.spyOn(cacheManager, 'getStats').mockRejectedValue(new Error('Stats retrieval failed'));
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -557,7 +586,7 @@ describe('message-handler', () => {
 
       jest.spyOn(cacheManager, 'getStats').mockResolvedValue(emptyStats);
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -578,7 +607,7 @@ describe('message-handler', () => {
       jest.spyOn(languageManager, 'addLanguage').mockResolvedValue({ success: true });
       jest.spyOn(languageManager, 'getLanguages').mockResolvedValue(['English', 'German', 'Spanish']);
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -599,7 +628,7 @@ describe('message-handler', () => {
         error: 'Language already exists'
       });
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -620,7 +649,7 @@ describe('message-handler', () => {
         error: 'Language name is required'
       });
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -641,7 +670,7 @@ describe('message-handler', () => {
         error: 'Language name too long (max 50 characters)'
       });
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -657,7 +686,7 @@ describe('message-handler', () => {
         data: {}
       };
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -678,7 +707,7 @@ describe('message-handler', () => {
       jest.spyOn(languageManager, 'removeLanguage').mockResolvedValue({ success: true });
       jest.spyOn(languageManager, 'getLanguages').mockResolvedValue(['English', 'French']);
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -699,7 +728,7 @@ describe('message-handler', () => {
         error: 'Language not found'
       });
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -720,7 +749,7 @@ describe('message-handler', () => {
         error: 'Cannot remove the last language'
       });
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -736,7 +765,7 @@ describe('message-handler', () => {
         data: {}
       };
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -756,7 +785,7 @@ describe('message-handler', () => {
         new Error('Storage error')
       );
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -796,8 +825,8 @@ describe('message-handler', () => {
       const response1 = jest.fn();
       const response2 = jest.fn();
 
-      handleMessage(message1, {}, response1);
-      handleMessage(message2, {}, response2);
+      handleMessage(message1, mockSender, response1);
+      handleMessage(message2, mockSender, response2);
 
       await new Promise(resolve => setTimeout(resolve, 20));
 
@@ -815,7 +844,7 @@ describe('message-handler', () => {
         }
       };
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -838,7 +867,7 @@ describe('message-handler', () => {
 
       jest.spyOn(llmClient, 'translate').mockResolvedValue({ translation: 'Hello! How are you? Hello', debugInfo: {} });
 
-      handleMessage(message, {}, sendResponseMock);
+      handleMessage(message, mockSender, sendResponseMock);
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -850,6 +879,88 @@ describe('message-handler', () => {
           , debugInfo: {}
         }
       });
+    });
+  });
+
+  describe('sender validation', () => {
+    test('should reject messages without sender ID', () => {
+      const message = { type: 'translate', data: { text: 'test', source_lang: 'en', target_lang: 'de' } };
+      const invalidSender = { tab: { id: 1 } }; // Missing ID
+
+      const result = handleMessage(message, invalidSender, sendResponseMock);
+
+      expect(result).toBe(false);
+      expect(sendResponseMock).toHaveBeenCalledWith({
+        success: false,
+        error: 'Invalid sender'
+      });
+    });
+
+    test('should reject messages from different extension', () => {
+      const message = { type: 'translate', data: { text: 'test', source_lang: 'en', target_lang: 'de' } };
+      const invalidSender = {
+        id: 'different-extension-id',
+        tab: { id: 1 }
+      };
+
+      const result = handleMessage(message, invalidSender, sendResponseMock);
+
+      expect(result).toBe(false);
+      expect(sendResponseMock).toHaveBeenCalledWith({
+        success: false,
+        error: 'Invalid sender'
+      });
+    });
+
+    test('should reject messages without tab or URL info', () => {
+      const message = { type: 'translate', data: { text: 'test', source_lang: 'en', target_lang: 'de' } };
+      const invalidSender = {
+        id: 'test-extension-id'
+        // Missing tab and url
+      };
+
+      const result = handleMessage(message, invalidSender, sendResponseMock);
+
+      expect(result).toBe(false);
+      expect(sendResponseMock).toHaveBeenCalledWith({
+        success: false,
+        error: 'Invalid sender'
+      });
+    });
+
+    test('should accept valid sender with tab info', () => {
+      const message = { type: 'checkHealth', data: {} };
+      const validSender = {
+        id: 'test-extension-id',
+        tab: { id: 1, url: 'https://example.com' }
+      };
+
+      jest.spyOn(llmClient, 'testConnection').mockResolvedValue(true);
+
+      const result = handleMessage(message, validSender, sendResponseMock);
+
+      expect(result).toBe(true);
+      // Should not reject
+      expect(sendResponseMock).not.toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'Invalid sender' })
+      );
+    });
+
+    test('should accept valid sender with URL info (popup/options)', () => {
+      const message = { type: 'checkHealth', data: {} };
+      const validSender = {
+        id: 'test-extension-id',
+        url: 'moz-extension://test-id/popup.html'
+      };
+
+      jest.spyOn(llmClient, 'testConnection').mockResolvedValue(true);
+
+      const result = handleMessage(message, validSender, sendResponseMock);
+
+      expect(result).toBe(true);
+      expect(sendResponseMock).not.toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'Invalid sender' })
+      );
     });
   });
 });

@@ -24,7 +24,7 @@ export function hexToRgb(hex) {
  * @returns {void}
  */
 export function applyCustomStyling(element, styleSettings) {
-  if (!element || !styleSettings) return;
+  if (!element || !styleSettings) {return;}
 
   if (styleSettings.translationBgColor) {
     const rgb = hexToRgb(styleSettings.translationBgColor);

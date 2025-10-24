@@ -68,6 +68,37 @@ export function extractWordAtOffset(text, offset) {
 }
 
 /**
+ * Check if element should be excluded from text extraction
+ * @param {Element} element - Element to check
+ * @returns {boolean}
+ */
+function shouldExcludeElement(element) {
+  if (!element || !element.tagName) return true;
+
+  const tag = element.tagName.toLowerCase();
+
+  // Exclude script, style, meta, and other non-content tags
+  const excludedTags = ['script', 'style', 'meta', 'link', 'noscript', 'iframe', 'object', 'embed'];
+  if (excludedTags.includes(tag)) return true;
+
+  // Exclude hidden elements
+  const style = window.getComputedStyle(element);
+  if (style.display === 'none' || style.visibility === 'hidden') return true;
+
+  // Exclude input fields that might contain sensitive data
+  if (tag === 'input') {
+    const type = element.getAttribute('type')?.toLowerCase();
+    const sensitiveTypes = ['password', 'hidden', 'email', 'tel', 'number', 'search'];
+    if (!type || sensitiveTypes.includes(type)) return true;
+  }
+
+  // Exclude textarea (might contain sensitive data)
+  if (tag === 'textarea') return true;
+
+  return false;
+}
+
+/**
  * Extract context around a node
  * @param {Node} node - Text node or element
  * @param {number} windowSize - Size of context window (total chars before + after)
@@ -89,6 +120,14 @@ export function extractContext(node, windowSize) {
   const maxAttempts = 5;
 
   while (attempts < maxAttempts && element) {
+    // Skip excluded elements
+    if (shouldExcludeElement(element)) {
+      console.debug(`[ContextTranslator] Skipping excluded element: ${element.tagName}`);
+      element = element.parentElement;
+      attempts++;
+      continue;
+    }
+
     fullText = element.textContent || element.innerText || '';
     console.debug(`[ContextTranslator] Attempt ${attempts + 1}: element tag=${element.tagName}, text length=${fullText.length}`);
 
@@ -172,6 +211,14 @@ export function extractContextFromRange(range, windowSize) {
   const maxAttempts = 5; // Don't go too far up the tree
 
   while (attempts < maxAttempts && element) {
+    // Skip excluded elements
+    if (shouldExcludeElement(element)) {
+      console.debug(`[ContextTranslator] Skipping excluded element: ${element.tagName}`);
+      element = element.parentElement;
+      attempts++;
+      continue;
+    }
+
     fullText = element.textContent || element.innerText || '';
     console.debug(`[ContextTranslator] Attempt ${attempts + 1}: element tag=${element.tagName}, text length=${fullText.length}`);
 
@@ -246,7 +293,23 @@ export function extractContextFromRange(range, windowSize) {
 function findTextNode(node) {
   if (node.nodeType === Node.TEXT_NODE) return node;
   if (node.nodeType === Node.ELEMENT_NODE) {
-    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    const walker = document.createTreeWalker(
+      node,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode: (textNode) => {
+          // Skip text nodes inside excluded elements
+          let parent = textNode.parentElement;
+          while (parent) {
+            if (shouldExcludeElement(parent)) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            parent = parent.parentElement;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      }
+    );
     return walker.nextNode();
   }
   return null;

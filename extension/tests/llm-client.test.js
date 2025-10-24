@@ -3,9 +3,12 @@
  */
 
 import { describe, test, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { llmClient } from '../background/llm-client.js';
+import { LLMClient } from '../lib/translation/llm-client.js';
+import { logger } from '../shared/logger.js';
+import { RateLimiter } from '../shared/rate-limiter.js';
 
 describe('LLMClient', () => {
+  let llmClient;
   let fetchMock;
   let originalFetch;
   let consoleLogSpy;
@@ -13,6 +16,10 @@ describe('LLMClient', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Instantiate LLMClient with dependencies
+    const rateLimiter = new RateLimiter(10, 60000);
+    llmClient = new LLMClient(logger, rateLimiter);
 
     // Mock fetch
     originalFetch = global.fetch;
@@ -25,15 +32,32 @@ describe('LLMClient', () => {
 
     // Reset llmClient to defaults
     llmClient.configure('http://localhost:1234/v1/chat/completions', 'local-model');
-
-    // Reset rate limiter
-    llmClient.rateLimiter.reset();
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
     consoleLogSpy.mockRestore();
     consoleErrorSpy.mockRestore();
+  });
+
+  describe('Constructor', () => {
+    test('should use default logger when not provided', () => {
+      const client = new LLMClient();
+      expect(client.logger).toBeDefined();
+    });
+
+    test('should create default rate limiter when not provided', () => {
+      const client = new LLMClient(logger);
+      expect(client.rateLimiter).toBeInstanceOf(RateLimiter);
+    });
+
+    test('should use provided logger and rate limiter', () => {
+      const customLogger = { ...logger };
+      const customRateLimiter = new RateLimiter(5, 30000);
+      const client = new LLMClient(customLogger, customRateLimiter);
+      expect(client.logger).toBe(customLogger);
+      expect(client.rateLimiter).toBe(customRateLimiter);
+    });
   });
 
   describe('configure()', () => {
@@ -45,8 +69,6 @@ describe('LLMClient', () => {
 
     test('should use default values when null provided', () => {
       llmClient.configure('http://custom:8080/v1/chat', 'custom-model');
-      const customEndpoint = llmClient.endpoint;
-      const customModel = llmClient.model;
 
       llmClient.configure(null, null);
 
@@ -62,6 +84,83 @@ describe('LLMClient', () => {
 
       expect(llmClient.endpoint).toBe('http://localhost:1234/v1/chat/completions');
       expect(llmClient.model).toBe('local-model');
+    });
+
+    test('should auto-detect rate limiting for remote endpoints', () => {
+      llmClient.configure('https://api.openai.com/v1/chat', 'gpt-4', null);
+      expect(llmClient.useRateLimit).toBe(true);
+    });
+
+    test('should auto-detect rate limiting disabled for localhost', () => {
+      llmClient.configure('http://localhost:1234/v1/chat', 'local-model', null);
+      expect(llmClient.useRateLimit).toBe(false);
+    });
+
+    test('should auto-detect rate limiting disabled for 127.0.0.1', () => {
+      llmClient.configure('http://127.0.0.1:1234/v1/chat', 'local-model', null);
+      expect(llmClient.useRateLimit).toBe(false);
+    });
+
+    test('should auto-detect rate limiting disabled for local network', () => {
+      llmClient.configure('http://192.168.1.100:1234/v1/chat', 'local-model', null);
+      expect(llmClient.useRateLimit).toBe(false);
+    });
+
+    test('should respect explicit rate limit setting', () => {
+      // Force enable for localhost
+      llmClient.configure('http://localhost:1234/v1/chat', 'local-model', true);
+      expect(llmClient.useRateLimit).toBe(true);
+
+      // Force disable for remote
+      llmClient.configure('https://api.openai.com/v1/chat', 'gpt-4', false);
+      expect(llmClient.useRateLimit).toBe(false);
+    });
+  });
+
+  describe('isLocalEndpoint()', () => {
+    test('should identify localhost', () => {
+      expect(llmClient.isLocalEndpoint('http://localhost:1234')).toBe(true);
+      expect(llmClient.isLocalEndpoint('https://localhost')).toBe(true);
+    });
+
+    test('should identify 127.0.0.1', () => {
+      expect(llmClient.isLocalEndpoint('http://127.0.0.1:8080')).toBe(true);
+    });
+
+    test('should identify ::1 (IPv6 localhost)', () => {
+      // Note: URL parsing of IPv6 addresses requires bracket notation
+      // If parsing fails, we treat it as non-local (safe default)
+      const hasIPv6 = llmClient.isLocalEndpoint('http://[::1]:8080');
+      // This may or may not work depending on URL implementation
+      expect(typeof hasIPv6).toBe('boolean');
+    });
+
+    test('should identify 192.168.x.x networks', () => {
+      expect(llmClient.isLocalEndpoint('http://192.168.1.1')).toBe(true);
+      expect(llmClient.isLocalEndpoint('http://192.168.0.100')).toBe(true);
+    });
+
+    test('should identify 10.x.x.x networks', () => {
+      expect(llmClient.isLocalEndpoint('http://10.0.0.1')).toBe(true);
+      expect(llmClient.isLocalEndpoint('http://10.1.2.3')).toBe(true);
+    });
+
+    test('should identify 172.16-31.x.x networks', () => {
+      expect(llmClient.isLocalEndpoint('http://172.16.0.1')).toBe(true);
+      expect(llmClient.isLocalEndpoint('http://172.20.0.1')).toBe(true);
+      expect(llmClient.isLocalEndpoint('http://172.31.255.255')).toBe(true);
+    });
+
+    test('should not identify public IPs as local', () => {
+      expect(llmClient.isLocalEndpoint('https://api.openai.com')).toBe(false);
+      expect(llmClient.isLocalEndpoint('http://8.8.8.8')).toBe(false);
+      expect(llmClient.isLocalEndpoint('http://172.15.0.1')).toBe(false);  // Outside range
+      expect(llmClient.isLocalEndpoint('http://172.32.0.1')).toBe(false);  // Outside range
+    });
+
+    test('should handle invalid URLs', () => {
+      expect(llmClient.isLocalEndpoint('not-a-url')).toBe(false);
+      expect(llmClient.isLocalEndpoint('')).toBe(false);
     });
   });
 

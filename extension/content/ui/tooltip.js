@@ -15,6 +15,12 @@ import { isDarkMode } from '../../shared/utils.js';
 export function showTooltip(translation, x, y, darkMode = 'auto', styleSettings = null) {
   removeTooltip();
 
+  // Validate input
+  if (!translation || typeof translation !== 'string') {
+    console.warn('[ContextTranslator] Invalid translation text provided to tooltip');
+    return;
+  }
+
   const popup = document.createElement('div');
   popup.id = 'ct-translation-popup';
 
@@ -27,6 +33,7 @@ export function showTooltip(translation, x, y, darkMode = 'auto', styleSettings 
 
   popup.style.left = `${x}px`;
   popup.style.top = `${y + 20}px`;
+  // Using textContent is safe - it automatically escapes HTML entities
   popup.textContent = translation;
 
   document.body.appendChild(popup);

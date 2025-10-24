@@ -74,7 +74,7 @@ export class ContentController {
    * Activate translator
    */
   async activate() {
-    if (this._isActive) return;
+    if (this._isActive) {return;}
 
     this._isActive = true;
     this.logger.debug('Activating translator');
@@ -87,7 +87,7 @@ export class ContentController {
    * Deactivate translator
    */
   async deactivate() {
-    if (!this._isActive) return;
+    if (!this._isActive) {return;}
 
     this._isActive = false;
     this.logger.debug('Deactivating translator');

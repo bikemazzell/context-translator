@@ -344,12 +344,12 @@ describe('Tooltip Translation Display', () => {
   });
 
   describe('Edge cases', () => {
-    it('should handle empty translation text', () => {
+    it('should not display tooltip for empty translation text', () => {
       showTooltip('', 100, 200);
 
       const tooltip = document.getElementById('ct-translation-popup');
-      expect(tooltip).toBeTruthy();
-      expect(tooltip.textContent).toBe('');
+      // Empty translations should not create tooltips (improved validation)
+      expect(tooltip).toBeFalsy();
     });
 
     it('should handle very long translation text', () => {

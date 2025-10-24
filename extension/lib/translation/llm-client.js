@@ -2,38 +2,73 @@
  * LLM Client - Direct HTTP communication with LLM server
  * Supports OpenAI-compatible APIs (LMStudio, llama.cpp, Ollama)
  *
- * @module background/llm-client
+ * @module lib/translation/llm-client
  */
 
-import { CONFIG } from '../shared/config.js';
-import { logger } from '../shared/logger.js';
-import { buildMessages } from './prompt-builder.js';
-import { extractTranslation } from './response-cleaner.js';
-import { validateTranslationRequest } from '../shared/validation.js';
-import { RateLimiter } from '../shared/rate-limiter.js';
+import { CONFIG } from '../../shared/config.js';
+import { TranslationError, NetworkError } from '../../shared/errors.js';
+import { logger } from '../../shared/logger.js';
+import { buildMessages } from '../../background/prompt-builder.js';
+import { extractTranslation } from '../../background/response-cleaner.js';
+import { validateTranslationRequest } from '../../shared/validation.js';
+import { RateLimiter } from '../../shared/rate-limiter.js';
 
-class LLMClient {
-  constructor() {
+export class LLMClient {
+  constructor(loggerInstance = logger, rateLimiterInstance = null) {
+    this.logger = loggerInstance;
     this.endpoint = CONFIG.llm.defaultEndpoint;
     this.model = CONFIG.llm.defaultModel;
     this.timeout = CONFIG.llm.timeout;
     this.maxRetries = CONFIG.llm.maxRetries;
     this.retryDelay = CONFIG.llm.retryDelay;
-    this.rateLimiter = new RateLimiter(10, 60000); // 10 requests per minute
+    this.rateLimiter = rateLimiterInstance || new RateLimiter(10, 60000);
     this.useRateLimit = false; // Disabled by default for local LLM instances
+  }
+
+  /**
+   * Check if endpoint is localhost/local network
+   * @param {string} endpoint - Endpoint URL
+   * @returns {boolean}
+   */
+  isLocalEndpoint(endpoint) {
+    try {
+      const url = new URL(endpoint);
+      const hostname = url.hostname.toLowerCase();
+
+      // Check for localhost, 127.0.0.1, or local network
+      const localHostnames = ['localhost', '127.0.0.1', '::1', '0.0.0.0'];
+      if (localHostnames.includes(hostname)) {return true;}
+
+      // Check for local network (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+      if (hostname.startsWith('192.168.')) {return true;}
+      if (hostname.startsWith('10.')) {return true;}
+      if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname)) {return true;}
+
+      return false;
+    } catch {
+      return false;
+    }
   }
 
   /**
    * Update endpoint and model from settings
    * @param {string} endpoint - LLM API endpoint
    * @param {string} model - Model name
-   * @param {boolean} useRateLimit - Whether to enforce rate limiting
+   * @param {boolean} useRateLimit - Whether to enforce rate limiting (null for auto-detect)
    */
-  configure(endpoint, model, useRateLimit = false) {
+  configure(endpoint, model, useRateLimit = null) {
     this.endpoint = endpoint || CONFIG.llm.defaultEndpoint;
     this.model = model || CONFIG.llm.defaultModel;
-    this.useRateLimit = useRateLimit;
-    logger.info('LLM client configured:', this.endpoint, this.model, 'useRateLimit:', this.useRateLimit);
+
+    // Smart rate limit detection: if null, auto-detect based on endpoint
+    if (useRateLimit === null) {
+      this.useRateLimit = !this.isLocalEndpoint(this.endpoint);
+      this.logger.info('Auto-detected rate limiting:', this.useRateLimit ? 'enabled (remote)' : 'disabled (local)');
+    } else {
+      this.useRateLimit = useRateLimit;
+    }
+
+    this.logger.info('LLM client configured:', this.endpoint, this.model, 'useRateLimit:', this.useRateLimit);
   }
 
   /**
@@ -55,7 +90,7 @@ class LLMClient {
 
     const messages = buildMessages(text, sourceLang, targetLang, context);
 
-    logger.debug('Built messages for LLM:', JSON.stringify(messages, null, 2));
+    this.logger.debug('Built messages for LLM:', JSON.stringify(messages, null, 2));
 
     const payload = {
       model: this.model,
@@ -65,7 +100,7 @@ class LLMClient {
       stream: false
     };
 
-    logger.debug('Sending translation request:', {
+    this.logger.debug('Sending translation request:', {
       text: text.substring(0, 50) + '...',
       sourceLang,
       targetLang,
@@ -80,19 +115,19 @@ class LLMClient {
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
         if (attempt > 0) {
-          logger.info(`Retry attempt ${attempt}/${this.maxRetries}`);
+          this.logger.info(`Retry attempt ${attempt}/${this.maxRetries}`);
           await this._sleep(this.retryDelay * attempt); // Exponential backoff
         }
 
         const response = await this._makeRequest(payload);
         const result = extractTranslation(response, text);
 
-        logger.info('Translation successful. Result:', result.translation);
+        this.logger.info('Translation successful. Result:', result.translation);
         return result;
 
       } catch (error) {
         lastError = error;
-        logger.warn(`Translation attempt ${attempt + 1} failed:`, error.message);
+        this.logger.warn(`Translation attempt ${attempt + 1} failed:`, error.message);
 
         // Don't retry on certain errors
         if (this._isNonRetryableError(error)) {
@@ -102,7 +137,7 @@ class LLMClient {
     }
 
     // All retries failed
-    logger.error('Translation failed after retries:', lastError);
+    this.logger.error('Translation failed after retries:', lastError);
     throw new Error(`Translation failed: ${lastError.message}`);
   }
 
@@ -132,7 +167,7 @@ class LLMClient {
       }
 
       const data = await response.json();
-      logger.info('LLM raw response:', JSON.stringify(data, null, 2));
+      this.logger.info('LLM raw response:', JSON.stringify(data, null, 2));
       return data;
 
     } catch (error) {
@@ -211,11 +246,8 @@ class LLMClient {
       return response.ok || response.status === 400; // 400 is ok, means server responded
 
     } catch (error) {
-      logger.error('Connection test failed:', error);
+      this.logger.error('Connection test failed:', error);
       return false;
     }
   }
 }
-
-// Create singleton instance
-export const llmClient = new LLMClient();

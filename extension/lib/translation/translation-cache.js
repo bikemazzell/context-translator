@@ -1,20 +1,23 @@
 /**
  * Translation cache using IndexedDB
  * Stores translations with TTL and LRU eviction
+ * Non-singleton version for dependency injection
+ * Includes HMAC integrity verification
  *
- * @module background/cache-manager
+ * @module lib/translation/translation-cache
  */
 
-import { CONFIG } from '../shared/config.js';
-import { logger } from '../shared/logger.js';
-import { hashString } from '../shared/utils.js';
+import { CONFIG } from '../../shared/config.js';
+import { secureHash, generateHMACKey, generateHMAC, verifyHMAC } from '../../shared/utils.js';
 
-export class CacheManager {
-  constructor() {
+export class TranslationCache {
+  constructor(logger) {
+    this.logger = logger || console;
     this.db = null;
     this.ready = false;
     this.evictionInProgress = false;
     this.pendingEviction = false;
+    this.hmacKey = null;
   }
 
   /**
@@ -22,52 +25,59 @@ export class CacheManager {
    * @returns {Promise<void>}
    */
   async init() {
-    if (this.ready) return;
+    if (this.ready) {
+      return;
+    }
 
-    return new Promise((resolve, reject) => {
+    await new Promise((resolve, reject) => {
       const request = indexedDB.open(CONFIG.cache.dbName, CONFIG.cache.dbVersion);
 
       request.onerror = () => {
-        logger.error('Failed to open IndexedDB:', request.error);
+        this.logger.error('Failed to open IndexedDB:', request.error);
         reject(request.error);
       };
 
       request.onsuccess = () => {
         this.db = request.result;
         this.ready = true;
-        logger.info('Cache database initialized');
+        this.logger.info('Cache database initialized');
         resolve();
       };
 
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
 
-        // Create object store if it doesn't exist
         if (!db.objectStoreNames.contains(CONFIG.cache.storeName)) {
           const store = db.createObjectStore(CONFIG.cache.storeName, {
-            keyPath: 'hash'
+            keyPath: 'hash',
           });
 
-          // Create index on timestamp for TTL cleanup and LRU eviction
           store.createIndex('timestamp', 'timestamp', { unique: false });
 
-          logger.info('Cache schema created');
+          this.logger.info('Cache schema created');
         }
       };
     });
+
+    this.hmacKey = await generateHMACKey();
+    if (this.hmacKey) {
+      this.logger.info('HMAC key generated for cache integrity verification');
+    } else {
+      this.logger.warn('HMAC key generation failed - cache integrity verification disabled');
+    }
   }
 
   /**
-   * Generate cache key from translation parameters
+   * Generate cache key from translation parameters using secure hash
    * @param {string} text - Text to translate
    * @param {string} sourceLang - Source language
    * @param {string} targetLang - Target language
    * @param {string|null} context - Optional context
-   * @returns {string} Cache key
+   * @returns {Promise<string>} Cache key (SHA-256 hash)
    */
-  generateKey(text, sourceLang, targetLang, context) {
+  async generateKey(text, sourceLang, targetLang, context) {
     const data = `${text}|${sourceLang}|${targetLang}|${context || ''}`;
-    return hashString(data);
+    return await secureHash(data);
   }
 
   /**
@@ -76,39 +86,55 @@ export class CacheManager {
    * @returns {Promise<string|null>} Translation or null if not found/expired
    */
   async get(key) {
-    if (!this.ready) await this.init();
+    if (!this.ready) {
+      await this.init();
+    }
 
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction([CONFIG.cache.storeName], 'readonly');
       const store = transaction.objectStore(CONFIG.cache.storeName);
       const request = store.get(key);
 
-      request.onsuccess = () => {
+      request.onsuccess = async () => {
         const entry = request.result;
 
         if (!entry) {
-          logger.debug('Cache miss:', key);
+          this.logger.debug('Cache miss:', key);
           resolve(null);
           return;
         }
 
-        // Check TTL
         const age = Date.now() - entry.timestamp;
         const maxAge = CONFIG.cache.ttlDays * 24 * 60 * 60 * 1000;
 
         if (age > maxAge) {
-          logger.debug('Cache entry expired:', key);
-          // Don't wait for deletion
-          this.delete(key).catch(e => logger.error('Failed to delete expired entry:', e));
+          this.logger.debug('Cache entry expired:', key);
+          this.delete(key).catch((e) => this.logger.error('Failed to delete expired entry:', e));
           resolve(null);
-        } else {
-          logger.debug('Cache hit:', key);
-          resolve(entry.translation);
+          return;
         }
+
+        if (entry.hmac && this.hmacKey) {
+          const data = `${entry.text}|${entry.sourceLang}|${entry.targetLang}|${entry.translation}|${entry.context || ''}`;
+          const isValid = await verifyHMAC(this.hmacKey, data, entry.hmac);
+
+          if (!isValid) {
+            this.logger.warn('Cache entry integrity verification failed - possible tampering detected:', key);
+            this.delete(key).catch((e) => this.logger.error('Failed to delete tampered entry:', e));
+            resolve(null);
+            return;
+          }
+
+          this.logger.debug('Cache hit with verified integrity:', key);
+        } else {
+          this.logger.debug('Cache hit (no integrity check):', key);
+        }
+
+        resolve(entry.translation);
       };
 
       request.onerror = () => {
-        logger.error('Cache get error:', request.error);
+        this.logger.error('Cache get error:', request.error);
         reject(request.error);
       };
     });
@@ -125,32 +151,42 @@ export class CacheManager {
    * @returns {Promise<void>}
    */
   async set(key, text, sourceLang, targetLang, translation, context = null) {
-    if (!this.ready) await this.init();
+    if (!this.ready) {
+      await this.init();
+    }
+
+    const entry = {
+      hash: key,
+      text,
+      sourceLang,
+      targetLang,
+      translation,
+      context,
+      timestamp: Date.now(),
+    };
+
+    if (this.hmacKey) {
+      const data = `${text}|${sourceLang}|${targetLang}|${translation}|${context || ''}`;
+      const hmac = await generateHMAC(this.hmacKey, data);
+      if (hmac) {
+        entry.hmac = hmac;
+        this.logger.debug('Cache entry signed with HMAC');
+      }
+    }
 
     return new Promise((resolve, reject) => {
-      const entry = {
-        hash: key,
-        text,
-        sourceLang,
-        targetLang,
-        translation,
-        context,
-        timestamp: Date.now()
-      };
-
       const transaction = this.db.transaction([CONFIG.cache.storeName], 'readwrite');
       const store = transaction.objectStore(CONFIG.cache.storeName);
       const request = store.put(entry);
 
       request.onsuccess = () => {
-        logger.debug('Cache set:', key);
-        // Enforce size limit asynchronously
-        this.enforceLimit().catch(e => logger.error('Failed to enforce cache limit:', e));
+        this.logger.debug('Cache set:', key);
+        this.enforceLimit().catch((e) => this.logger.error('Failed to enforce cache limit:', e));
         resolve();
       };
 
       request.onerror = () => {
-        logger.error('Cache set error:', request.error);
+        this.logger.error('Cache set error:', request.error);
         reject(request.error);
       };
     });
@@ -162,7 +198,9 @@ export class CacheManager {
    * @returns {Promise<void>}
    */
   async delete(key) {
-    if (!this.ready) await this.init();
+    if (!this.ready) {
+      await this.init();
+    }
 
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction([CONFIG.cache.storeName], 'readwrite');
@@ -179,7 +217,9 @@ export class CacheManager {
    * @returns {Promise<void>}
    */
   async clear() {
-    if (!this.ready) await this.init();
+    if (!this.ready) {
+      await this.init();
+    }
 
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction([CONFIG.cache.storeName], 'readwrite');
@@ -187,12 +227,12 @@ export class CacheManager {
       const request = store.clear();
 
       request.onsuccess = () => {
-        logger.info('Cache cleared');
+        this.logger.info('Cache cleared');
         resolve();
       };
 
       request.onerror = () => {
-        logger.error('Cache clear error:', request.error);
+        this.logger.error('Cache clear error:', request.error);
         reject(request.error);
       };
     });
@@ -203,7 +243,9 @@ export class CacheManager {
    * @returns {Promise<number>} Entry count
    */
   async getSize() {
-    if (!this.ready) await this.init();
+    if (!this.ready) {
+      await this.init();
+    }
 
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction([CONFIG.cache.storeName], 'readonly');
@@ -235,7 +277,7 @@ export class CacheManager {
 
     try {
       const toDelete = size - CONFIG.cache.maxEntries;
-      logger.info(`Evicting ${toDelete} old cache entries (LRU)`);
+      this.logger.info(`Evicting ${toDelete} old cache entries (LRU)`);
 
       await new Promise((resolve, reject) => {
         const transaction = this.db.transaction([CONFIG.cache.storeName], 'readwrite');
@@ -253,13 +295,13 @@ export class CacheManager {
             deleted++;
             cursor.continue();
           } else {
-            logger.debug(`Evicted ${deleted} entries`);
+            this.logger.debug(`Evicted ${deleted} entries`);
             resolve();
           }
         };
 
         request.onerror = () => {
-          logger.error('Cache eviction error:', request.error);
+          this.logger.error('Cache eviction error:', request.error);
           reject(request.error);
         };
       });
@@ -283,7 +325,7 @@ export class CacheManager {
     return {
       size,
       maxEntries: CONFIG.cache.maxEntries,
-      utilization: (size / CONFIG.cache.maxEntries * 100).toFixed(1) + '%'
+      utilization: ((size / CONFIG.cache.maxEntries) * 100).toFixed(1) + '%',
     };
   }
 
@@ -296,10 +338,7 @@ export class CacheManager {
       this.db.close();
       this.db = null;
       this.ready = false;
-      logger.info('Cache database closed');
+      this.logger.info('Cache database closed');
     }
   }
 }
-
-// Create singleton instance
-export const cacheManager = new CacheManager();

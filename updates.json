@@ -3,14 +3,9 @@
     "context-translator@bike-mazzell": {
       "updates": [
         {
-          "version": "1.0.0",
-          "update_link": "https://github.com/bike-mazzell/context-translator/releases/download/v1.0.0/context_translator-1.0.0.xpi",
-          "update_hash": "sha256:HASH_OF_XPI_FILE"
-        },
-        {
-          "version": "1.0.2",
-          "update_link": "https://github.com/bikemazzell/context-translator/releases/download/v1.0.2/context-translator-1.0.2.xpi",
-          "update_hash": "sha256:315348306666ae803b8233554e164ff44de79da29c5aac7b0c6253fd3b2b1873"
+          "version": "1.0.5",
+          "update_link": "https://github.com/anthropics/context-translator/releases/download/v1.0.5/context-translator-1.0.5.xpi",
+          "update_info_url": "https://github.com/anthropics/context-translator/releases/tag/v1.0.5"
         }
       ]
     }

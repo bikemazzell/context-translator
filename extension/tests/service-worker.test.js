@@ -69,17 +69,17 @@ describe('service-worker', () => {
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
     consoleDebugSpy = jest.spyOn(console, 'debug').mockImplementation();
 
-    // Mock dependencies - import after mocking browser
-    const cacheManagerModule = await import('../background/cache-manager.js');
-    const llmClientModule = await import('../background/llm-client.js');
+    // Mock DI dependencies - spy on prototype methods
+    const TranslationCacheModule = await import('../lib/translation/translation-cache.js');
+    const LLMClientModule = await import('../lib/translation/llm-client.js');
 
     cacheManagerSpy = {
-      init: jest.spyOn(cacheManagerModule.cacheManager, 'init').mockResolvedValue(undefined),
-      close: jest.spyOn(cacheManagerModule.cacheManager, 'close').mockImplementation()
+      init: jest.spyOn(TranslationCacheModule.TranslationCache.prototype, 'init').mockResolvedValue(undefined),
+      close: jest.spyOn(TranslationCacheModule.TranslationCache.prototype, 'close').mockImplementation()
     };
 
     llmClientSpy = {
-      configure: jest.spyOn(llmClientModule.llmClient, 'configure').mockImplementation()
+      configure: jest.spyOn(LLMClientModule.LLMClient.prototype, 'configure').mockImplementation()
     };
   });
 
@@ -99,7 +99,7 @@ describe('service-worker', () => {
   describe('Initialization', () => {
     test('should initialize cache manager on startup', async () => {
       // Import the module which will trigger initialize()
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
 
       // Wait for async initialization
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -116,7 +116,7 @@ describe('service-worker', () => {
         }
       });
 
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
       await new Promise(resolve => setTimeout(resolve, 10));
 
       expect(llmClientSpy.configure).toHaveBeenCalledWith(
@@ -129,7 +129,7 @@ describe('service-worker', () => {
     test('should not configure LLM client if no settings', async () => {
       mockBrowser.storage.local.get.mockResolvedValue({ settings: null });
 
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
       await new Promise(resolve => setTimeout(resolve, 10));
 
       expect(llmClientSpy.configure).not.toHaveBeenCalled();
@@ -143,7 +143,7 @@ describe('service-worker', () => {
         }
       });
 
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
       await new Promise(resolve => setTimeout(resolve, 10));
 
       expect(llmClientSpy.configure).not.toHaveBeenCalled();
@@ -152,7 +152,7 @@ describe('service-worker', () => {
     test('should handle initialization errors gracefully', async () => {
       cacheManagerSpy.init.mockRejectedValue(new Error('Cache init failed'));
 
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
       await new Promise(resolve => setTimeout(resolve, 10));
 
       // Should not throw, should log error
@@ -166,7 +166,7 @@ describe('service-worker', () => {
 
   describe('Storage Change Listener', () => {
     test('should register storage change listener', async () => {
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
 
       expect(mockBrowser.storage.onChanged.addListener).toHaveBeenCalled();
       // Expect 2 listeners: one from logger.js and one from service-worker.js
@@ -174,7 +174,7 @@ describe('service-worker', () => {
     });
 
     test('should reconfigure LLM client when settings change', async () => {
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
       await new Promise(resolve => setTimeout(resolve, 10));
 
       // Clear previous calls from initialization
@@ -202,7 +202,7 @@ describe('service-worker', () => {
     });
 
     test('should ignore non-local storage changes', async () => {
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
       await new Promise(resolve => setTimeout(resolve, 10));
 
       llmClientSpy.configure.mockClear();
@@ -224,7 +224,7 @@ describe('service-worker', () => {
     });
 
     test('should ignore non-settings changes', async () => {
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
       await new Promise(resolve => setTimeout(resolve, 10));
 
       llmClientSpy.configure.mockClear();
@@ -242,7 +242,7 @@ describe('service-worker', () => {
     });
 
     test('should ignore settings changes without llmEndpoint', async () => {
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
       await new Promise(resolve => setTimeout(resolve, 10));
 
       llmClientSpy.configure.mockClear();
@@ -262,7 +262,7 @@ describe('service-worker', () => {
     });
 
     test('should ignore settings changes with null newValue', async () => {
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
       await new Promise(resolve => setTimeout(resolve, 10));
 
       llmClientSpy.configure.mockClear();
@@ -282,7 +282,7 @@ describe('service-worker', () => {
 
   describe('Message Listener', () => {
     test('should register message listener', async () => {
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
 
       expect(mockBrowser.runtime.onMessage.addListener).toHaveBeenCalled();
       expect(messageListeners.length).toBe(1);
@@ -292,7 +292,7 @@ describe('service-worker', () => {
 
   describe('Command Listener', () => {
     test('should register command listener', async () => {
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
 
       expect(mockBrowser.commands.onCommand.addListener).toHaveBeenCalled();
       expect(commandListeners.length).toBe(1);
@@ -301,7 +301,7 @@ describe('service-worker', () => {
     test('should send toggle message to active tab on toggle-translator command', async () => {
       mockBrowser.tabs.query.mockResolvedValue([{ id: 123 }]);
 
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
 
       const listener = commandListeners[0];
       await listener('toggle-translator');
@@ -318,7 +318,7 @@ describe('service-worker', () => {
     test('should not send message if no active tab', async () => {
       mockBrowser.tabs.query.mockResolvedValue([]);
 
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
 
       const listener = commandListeners[0];
       await listener('toggle-translator');
@@ -330,7 +330,7 @@ describe('service-worker', () => {
       mockBrowser.tabs.query.mockResolvedValue([{ id: 123 }]);
       mockBrowser.tabs.sendMessage.mockRejectedValue(new Error('Tab not found'));
 
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
 
       const listener = commandListeners[0];
       await listener('toggle-translator');
@@ -344,7 +344,7 @@ describe('service-worker', () => {
     });
 
     test('should ignore unknown commands', async () => {
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
 
       const listener = commandListeners[0];
       await listener('unknown-command');
@@ -356,14 +356,14 @@ describe('service-worker', () => {
 
   describe('Installation Listener', () => {
     test('should register installation listener', async () => {
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
 
       expect(mockBrowser.runtime.onInstalled.addListener).toHaveBeenCalled();
       expect(installedListeners.length).toBe(1);
     });
 
     test('should log on first installation', async () => {
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
 
       const listener = installedListeners[0];
       listener({ reason: 'install' });
@@ -380,7 +380,7 @@ describe('service-worker', () => {
     });
 
     test('should log on extension update', async () => {
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
 
       const listener = installedListeners[0];
       listener({ reason: 'update' });
@@ -399,7 +399,7 @@ describe('service-worker', () => {
     });
 
     test('should handle other installation reasons', async () => {
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
 
       const listener = installedListeners[0];
       listener({ reason: 'chrome_update' });
@@ -414,14 +414,14 @@ describe('service-worker', () => {
 
   describe('Suspend Listener (Firefox)', () => {
     test('should register suspend listener if available', async () => {
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
 
       expect(mockBrowser.runtime.onSuspend.addListener).toHaveBeenCalled();
       expect(suspendListeners.length).toBe(1);
     });
 
     test('should close cache manager on suspend', async () => {
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
 
       const listener = suspendListeners[0];
       listener();
@@ -433,7 +433,7 @@ describe('service-worker', () => {
       // Remove onSuspend to simulate Chrome (which doesn't have it)
       delete mockBrowser.runtime.onSuspend;
 
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
 
       // Should not throw
       expect(cacheManagerSpy.close).not.toHaveBeenCalled();
@@ -442,7 +442,7 @@ describe('service-worker', () => {
 
   describe('Module Loading', () => {
     test('should log when service worker is loaded', async () => {
-      await import('../background/service-worker.js');
+      await import('../background/service-worker-main.js');
 
       expect(consoleLogSpy).toHaveBeenCalledWith(
         '[ContextTranslator]',

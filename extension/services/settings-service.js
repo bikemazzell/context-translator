@@ -117,7 +117,7 @@ export class SettingsService {
         key,
         value
       });
-    } catch (error) {
+    } catch {
       // Content script might not be loaded, that's ok
     }
   }

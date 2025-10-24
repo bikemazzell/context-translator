@@ -3,6 +3,8 @@
   "name": "Context Translator",
   "version": "1.0.5",
   "description": "Context-aware translation using local LLM - No backend required!",
+  "author": "Vincent (v)",
+  "homepage_url": "https://github.com/anthropics/context-translator",
   "permissions": [
     "storage",
     "unlimitedStorage",
@@ -13,9 +15,7 @@
     "http://127.0.0.1/*"
   ],
   "background": {
-    "scripts": [
-      "background/service-worker.js"
-    ],
+    "service_worker": "background/service-worker.js",
     "type": "module"
   },
   "content_scripts": [
@@ -23,7 +23,22 @@
       "matches": [
         "<all_urls>"
       ],
+      "exclude_matches": [
+        "*://*.bank/*",
+        "*://*.bankofamerica.com/*",
+        "*://*.chase.com/*",
+        "*://*.wellsfargo.com/*",
+        "*://*.citibank.com/*",
+        "*://*.paypal.com/*",
+        "*://*.stripe.com/*",
+        "*://accounts.google.com/*",
+        "*://login.microsoftonline.com/*",
+        "*://signin.aws.amazon.com/*",
+        "*://*.irs.gov/*",
+        "*://*.healthcare.gov/*"
+      ],
       "js": [
+        "lib/external/browser-polyfill.js",
         "content/loader.js"
       ],
       "css": [
@@ -36,6 +51,7 @@
   "web_accessible_resources": [
     {
       "resources": [
+        "lib/external/browser-polyfill.js",
         "content/main.js",
         "content/handlers/*.js",
         "content/ui/*.js",
@@ -65,15 +81,23 @@
       "description": "Toggle Context Translator (Ctrl+Alt+C)"
     }
   },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; worker-src 'self'"
+  },
   "browser_specific_settings": {
     "gecko": {
       "id": "context-translator@bike-mazzell",
       "strict_min_version": "112.0",
+      "update_url": "https://raw.githubusercontent.com/anthropics/context-translator/main/updates.json",
       "data_collection_permissions": {
         "required": [
           "none"
         ]
       }
     }
+  },
+  "developer": {
+    "name": "Vincent (v)",
+    "url": "https://github.com/anthropics/context-translator"
   }
 }

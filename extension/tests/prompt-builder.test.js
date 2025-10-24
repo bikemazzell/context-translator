@@ -148,13 +148,13 @@ describe('buildMessages', () => {
     const messages = buildMessages('  hello  ', 'English', 'Spanish', null);
 
     expect(messages[1].content).toContain('hello');
-    expect(messages[1].content).not.toMatch(/  hello  /);
+    expect(messages[1].content).not.toMatch(/ {2}hello {2}/);
   });
 
   test('should sanitize context in user message', () => {
     const messages = buildMessages('hello', 'English', 'Spanish', '  greeting  ');
 
     expect(messages[1].content).toContain('greeting');
-    expect(messages[1].content).not.toMatch(/  greeting  /);
+    expect(messages[1].content).not.toMatch(/ {2}greeting {2}/);
   });
 });
