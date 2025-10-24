@@ -215,9 +215,9 @@ describe('isDarkMode', () => {
 
   test('should use matchMedia for "auto" mode when available', () => {
     global.window = {
-      matchMedia: (query) => ({
+      matchMedia: jest.fn((query) => ({
         matches: query === '(prefers-color-scheme: dark)'
-      })
+      }))
     };
 
     expect(isDarkMode('auto')).toBe(true);

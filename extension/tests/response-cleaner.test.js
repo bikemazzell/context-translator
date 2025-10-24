@@ -237,7 +237,7 @@ describe('extractTranslation', () => {
     const result = extractTranslation(response, 'hello');
 
     expect(result.translation).toBe('hola');
-    expect(result).not.toContain('Translation:');
+    expect(result.translation).not.toContain('Translation:');
   });
 
   test('should use first choice', () => {

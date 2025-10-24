@@ -11,6 +11,8 @@
     "lint:fix": "eslint extension/**/*.js --fix",
     "format": "prettier --write \"extension/**/*.js\"",
     "format:check": "prettier --check \"extension/**/*.js\"",
+    "build": "npm run lint && npm test && ./scripts/package-extension.sh",
+    "build:full": "npm run lint:fix && npm run test:coverage && ./scripts/package-extension.sh",
     "version:major": "./scripts/bump-version.sh major",
     "version:minor": "./scripts/bump-version.sh minor",
     "version:patch": "./scripts/bump-version.sh patch"
