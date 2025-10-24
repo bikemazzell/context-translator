@@ -578,7 +578,7 @@ describe('text-extraction', () => {
         })
       };
 
-      const result = extractContext(mockElementInput, 40);
+      extractContext(mockElementInput, 40);
 
       expect(document.createTreeWalker).toHaveBeenCalled();
     });

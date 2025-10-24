@@ -38,7 +38,10 @@ CURRENT_VERSION=$(node -p "require('./package.json').version")
 echo -e "Current version: ${YELLOW}$CURRENT_VERSION${NC}"
 
 # Use npm version to bump (this updates package.json)
-NEW_VERSION=$(npm version $BUMP_TYPE --no-git-tag-version --json | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf-8'))['context-translator']")
+npm version $BUMP_TYPE --no-git-tag-version > /dev/null 2>&1
+
+# Get the new version from package.json
+NEW_VERSION=$(node -p "require('./package.json').version")
 
 echo -e "New version: ${GREEN}$NEW_VERSION${NC}"
 
@@ -51,14 +54,30 @@ manifest.version = '$NEW_VERSION';
 fs.writeFileSync('extension/manifest.json', JSON.stringify(manifest, null, 2) + '\n');
 "
 
+# Update updates.json with new version
+echo "Updating updates.json..."
+node -e "
+const fs = require('fs');
+const updates = JSON.parse(fs.readFileSync('updates.json', 'utf8'));
+const addonId = 'context-translator@bike-mazzell';
+updates.addons[addonId].updates = [{
+  version: '$NEW_VERSION',
+  update_link: 'https://github.com/anthropics/context-translator/releases/download/v$NEW_VERSION/context-translator-$NEW_VERSION.xpi',
+  update_info_url: 'https://github.com/anthropics/context-translator/releases/tag/v$NEW_VERSION'
+}];
+fs.writeFileSync('updates.json', JSON.stringify(updates, null, 2) + '\n');
+"
+
 # Validate the versions match
 MANIFEST_VERSION=$(node -p "require('./extension/manifest.json').version")
 PACKAGE_VERSION=$(node -p "require('./package.json').version")
+UPDATES_VERSION=$(node -p "require('./updates.json').addons['context-translator@bike-mazzell'].updates[0].version")
 
-if [ "$MANIFEST_VERSION" != "$PACKAGE_VERSION" ]; then
+if [ "$MANIFEST_VERSION" != "$PACKAGE_VERSION" ] || [ "$MANIFEST_VERSION" != "$UPDATES_VERSION" ]; then
   echo -e "${RED}Error: Version mismatch!${NC}"
   echo "  package.json: $PACKAGE_VERSION"
   echo "  manifest.json: $MANIFEST_VERSION"
+  echo "  updates.json: $UPDATES_VERSION"
   exit 1
 fi
 
@@ -66,7 +85,7 @@ echo -e "${GREEN}✓ Version bumped successfully: $CURRENT_VERSION → $NEW_VERS
 echo ""
 echo "Next steps:"
 echo "  1. Update CHANGELOG.md with changes for v$NEW_VERSION"
-echo "  2. git add package.json extension/manifest.json CHANGELOG.md"
+echo "  2. git add package.json extension/manifest.json updates.json CHANGELOG.md"
 echo "  3. git commit -m \"Release version $NEW_VERSION\""
 echo "  4. git tag v$NEW_VERSION"
 echo "  5. git push && git push --tags"
