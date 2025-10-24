@@ -106,10 +106,38 @@ fi
 
 # Step 3: Check if tag already exists
 if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-    print_error "Tag v$VERSION already exists"
-    exit 1
+    print_warning "Tag v$VERSION already exists"
+
+    # Check if tag was pushed to remote
+    if git ls-remote --tags origin | grep -q "refs/tags/v$VERSION"; then
+        print_warning "Tag v$VERSION exists on remote"
+        echo "This version has already been released and pushed."
+        echo ""
+        echo "If you need to modify this release:"
+        echo "  1. Create a new patch version (e.g., ${VERSION%.*}.$((${VERSION##*.}+1)))"
+        echo "  2. Or delete the tag locally and remotely (dangerous):"
+        echo "     git tag -d v$VERSION"
+        echo "     git push origin :refs/tags/v$VERSION"
+        exit 1
+    else
+        print_warning "Tag v$VERSION exists locally but not on remote"
+        read -p "Delete local tag and continue? (y/N) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            if [ "$DRY_RUN" = false ]; then
+                git tag -d "v$VERSION"
+                print_success "Deleted local tag v$VERSION"
+            else
+                print_warning "Would delete local tag v$VERSION (dry-run)"
+            fi
+        else
+            print_error "Release cancelled"
+            exit 1
+        fi
+    fi
+else
+    print_success "Tag v$VERSION is available"
 fi
-print_success "Tag v$VERSION is available"
 
 # Step 4: Run tests
 print_step "Running test suite..."
