@@ -214,13 +214,18 @@ describe('isDarkMode', () => {
   });
 
   test('should use matchMedia for "auto" mode when available', () => {
+    const matchMediaMock = jest.fn((query) => ({
+      matches: query === '(prefers-color-scheme: dark)'
+    }));
+
     global.window = {
-      matchMedia: jest.fn((query) => ({
-        matches: query === '(prefers-color-scheme: dark)'
-      }))
+      matchMedia: matchMediaMock
     };
 
-    expect(isDarkMode('auto')).toBe(true);
+    const result = isDarkMode('auto');
+
+    expect(matchMediaMock).toHaveBeenCalledWith('(prefers-color-scheme: dark)');
+    expect(result).toBe(true);
   });
 
   test('should detect light preference in auto mode', () => {
