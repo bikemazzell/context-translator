@@ -9,8 +9,13 @@
  * @returns {Promise<void>}
  */
 export async function initContentScript(browserAPI = globalThis.browser) {
+  // Use static path for Mozilla's security analyzer
+  // The path is always 'content/main.js' relative to the extension root
+  const MODULE_PATH = 'content/main.js';
+  const moduleURL = browserAPI.runtime.getURL(MODULE_PATH);
+
   try {
-    await import(browserAPI.runtime.getURL('content/main.js'));
+    await import(/* webpackIgnore: true */ moduleURL);
   } catch (error) {
     console.error('[ContextTranslator] Failed to load content script:', error);
     throw error;
