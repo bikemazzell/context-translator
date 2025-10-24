@@ -1,6 +1,6 @@
 {
   "name": "context-translator",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Firefox extension for contextual translation using local LLMs",
   "type": "module",
   "scripts": {

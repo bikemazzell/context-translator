@@ -3,6 +3,14 @@
  */
 
 import { describe, test, expect, jest, beforeEach, afterEach } from '@jest/globals';
+
+// Set up global document mock before importing the module
+global.document = {
+  caretRangeFromPoint: jest.fn(),
+  createRange: jest.fn(),
+  createTreeWalker: jest.fn()
+};
+
 import {
   extractWordAtPoint,
   extractWordAtOffset,
@@ -224,9 +232,17 @@ describe('text-extraction', () => {
   describe('extractWordAtPoint', () => {
     let mockRange;
     let mockTextNode;
-    let mockDocument;
 
     beforeEach(() => {
+      // Ensure global.document exists (might be deleted by main afterEach)
+      if (!global.document) {
+        global.document = {
+          caretRangeFromPoint: jest.fn(),
+          createRange: jest.fn(),
+          createTreeWalker: jest.fn()
+        };
+      }
+
       // Create mock text node
       mockTextNode = {
         nodeType: 3, // TEXT_NODE
@@ -239,29 +255,23 @@ describe('text-extraction', () => {
         startOffset: 3 // middle of "Hello"
       };
 
-      // Create mock document with jest functions
-      const caretRangeMock = jest.fn().mockReturnValue(mockRange);
-      const createRangeMock = jest.fn().mockReturnValue({
+      // Ensure caretRangeFromPoint exists and is a mock
+      if (!global.document.caretRangeFromPoint || typeof global.document.caretRangeFromPoint.mockClear !== 'function') {
+        global.document.caretRangeFromPoint = jest.fn();
+      }
+
+      // Configure the global document mocks
+      global.document.caretRangeFromPoint.mockClear().mockReturnValue(mockRange);
+      global.document.createRange.mockClear().mockReturnValue({
         setStart: jest.fn(),
         setEnd: jest.fn()
       });
-
-      mockDocument = {
-        caretRangeFromPoint: caretRangeMock,
-        createRange: createRangeMock
-      };
-
-      global.document = mockDocument;
-    });
-
-    afterEach(() => {
-      delete global.document;
     });
 
     test('should extract word at point using caretRangeFromPoint', () => {
       const result = extractWordAtPoint(100, 200);
 
-      expect(mockDocument.caretRangeFromPoint).toHaveBeenCalledWith(100, 200);
+      expect(global.document.caretRangeFromPoint).toHaveBeenCalledWith(100, 200);
       expect(result).toBeDefined();
       expect(result.text).toBe('Hello');
       expect(result.node).toBe(mockTextNode);
@@ -269,7 +279,7 @@ describe('text-extraction', () => {
     });
 
     test('should return null if caretRangeFromPoint returns null', () => {
-      mockDocument.caretRangeFromPoint.mockReturnValue(null);
+      global.document.caretRangeFromPoint.mockReturnValue(null);
 
       const result = extractWordAtPoint(100, 200);
 
@@ -298,31 +308,48 @@ describe('text-extraction', () => {
         offset: 3
       };
 
-      delete mockDocument.caretRangeFromPoint;
-      mockDocument.caretPositionFromPoint = jest.fn().mockReturnValue(mockPosition);
+      // Temporarily remove caretRangeFromPoint and add caretPositionFromPoint
+      const savedCaretRange = global.document.caretRangeFromPoint;
+      delete global.document.caretRangeFromPoint;
+      global.document.caretPositionFromPoint = jest.fn().mockReturnValue(mockPosition);
 
       const result = extractWordAtPoint(100, 200);
 
-      expect(mockDocument.caretPositionFromPoint).toHaveBeenCalledWith(100, 200);
+      expect(global.document.caretPositionFromPoint).toHaveBeenCalledWith(100, 200);
       expect(result).toBeDefined();
       expect(result.text).toBe('Hello');
+
+      // Restore
+      delete global.document.caretPositionFromPoint;
+      global.document.caretRangeFromPoint = savedCaretRange;
     });
 
     test('should return null if caretPositionFromPoint returns null', () => {
-      delete mockDocument.caretRangeFromPoint;
-      mockDocument.caretPositionFromPoint = jest.fn().mockReturnValue(null);
+      // Temporarily remove caretRangeFromPoint and add caretPositionFromPoint
+      const savedCaretRange = global.document.caretRangeFromPoint;
+      delete global.document.caretRangeFromPoint;
+      global.document.caretPositionFromPoint = jest.fn().mockReturnValue(null);
 
       const result = extractWordAtPoint(100, 200);
 
       expect(result).toBeNull();
+
+      // Restore
+      delete global.document.caretPositionFromPoint;
+      global.document.caretRangeFromPoint = savedCaretRange;
     });
 
     test('should return null if no API available', () => {
-      delete mockDocument.caretRangeFromPoint;
+      // Temporarily remove caretRangeFromPoint
+      const savedCaretRange = global.document.caretRangeFromPoint;
+      delete global.document.caretRangeFromPoint;
 
       const result = extractWordAtPoint(100, 200);
 
       expect(result).toBeNull();
+
+      // Restore
+      global.document.caretRangeFromPoint = savedCaretRange;
     });
 
     test('should create proper range for extracted word', () => {
@@ -330,11 +357,11 @@ describe('text-extraction', () => {
         setStart: jest.fn(),
         setEnd: jest.fn()
       };
-      mockDocument.createRange.mockReturnValue(mockCreatedRange);
+      global.document.createRange.mockReturnValue(mockCreatedRange);
 
       const result = extractWordAtPoint(100, 200);
 
-      expect(mockDocument.createRange).toHaveBeenCalled();
+      expect(global.document.createRange).toHaveBeenCalled();
       expect(mockCreatedRange.setStart).toHaveBeenCalledWith(mockTextNode, 0);
       expect(mockCreatedRange.setEnd).toHaveBeenCalledWith(mockTextNode, 5);
       expect(result.range).toBe(mockCreatedRange);
@@ -371,10 +398,6 @@ describe('text-extraction', () => {
         })
       };
       global.window = mockWindow;
-    });
-
-    afterEach(() => {
-      delete global.window;
     });
 
     test('should extract context centered around text node', () => {
