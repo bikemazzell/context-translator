@@ -5,6 +5,11 @@
 
 import { jest } from '@jest/globals';
 
+// Polyfill TextEncoder/TextDecoder for JSDOM (needed when tests import JSDOM directly)
+import { TextEncoder, TextDecoder } from 'util';
+global.TextEncoder = TextEncoder;
+global.TextDecoder = TextDecoder;
+
 // Mock browser.storage API
 global.browser = {
   storage: {

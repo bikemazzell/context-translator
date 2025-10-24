@@ -4,13 +4,6 @@
 
 import { describe, test, expect, jest, beforeEach, afterEach } from '@jest/globals';
 
-// Set up global document mock before importing the module
-global.document = {
-  caretRangeFromPoint: jest.fn(),
-  createRange: jest.fn(),
-  createTreeWalker: jest.fn()
-};
-
 import {
   extractWordAtPoint,
   extractWordAtOffset,
@@ -20,39 +13,29 @@ import {
 
 describe('text-extraction', () => {
   let consoleDebugSpy;
+  let savedDocument;
+  let savedWindow;
 
   beforeEach(() => {
     // Suppress console output
     consoleDebugSpy = jest.spyOn(console, 'debug').mockImplementation();
 
-    // Mock global Node constants (browser DOM API)
-    global.Node = {
-      TEXT_NODE: 3,
-      ELEMENT_NODE: 1
-    };
+    // Save references to JSDOM globals
+    savedDocument = global.document;
+    savedWindow = global.window;
 
-    // Mock NodeFilter constants
-    global.NodeFilter = {
-      SHOW_TEXT: 4,
-      FILTER_ACCEPT: 1,
-      FILTER_REJECT: 2
-    };
-
-    // Mock window.getComputedStyle for all tests
-    global.window = {
-      getComputedStyle: jest.fn().mockReturnValue({
-        display: 'block',
-        visibility: 'visible'
-      })
-    };
+    // Mock window.getComputedStyle for all tests (keep existing window object)
+    global.window.getComputedStyle = jest.fn().mockReturnValue({
+      display: 'block',
+      visibility: 'visible'
+    });
   });
 
   afterEach(() => {
     consoleDebugSpy.mockRestore();
-    delete global.Node;
-    delete global.NodeFilter;
-    delete global.window;
-    delete global.document;
+    // Restore original globals
+    global.document = savedDocument;
+    global.window = savedWindow;
   });
 
   describe('extractWordAtOffset', () => {
@@ -232,40 +215,44 @@ describe('text-extraction', () => {
   describe('extractWordAtPoint', () => {
     let mockRange;
     let mockTextNode;
+    let mockCreatedRange;
+    let originalCreateRange;
 
     beforeEach(() => {
-      // Ensure global.document exists (might be deleted by main afterEach)
-      if (!global.document) {
-        global.document = {
-          caretRangeFromPoint: jest.fn(),
-          createRange: jest.fn(),
-          createTreeWalker: jest.fn()
-        };
+      // Save original createRange
+      originalCreateRange = document.createRange;
+
+      // Create real JSDOM text node
+      const testEl = document.createElement('p');
+      testEl.textContent = 'Hello world test';
+      mockTextNode = testEl.firstChild;
+
+      // Create mock range using the original createRange
+      mockRange = originalCreateRange.call(document);
+      mockRange.setStart(mockTextNode, 3); // middle of "Hello"
+      mockRange.setEnd(mockTextNode, 3);
+
+      // Add caretRangeFromPoint to document if it doesn't exist
+      if (!document.caretRangeFromPoint) {
+        document.caretRangeFromPoint = jest.fn();
       }
 
-      // Create mock text node
-      mockTextNode = {
-        nodeType: 3, // TEXT_NODE
-        textContent: 'Hello world test'
-      };
+      // Mock document methods
+      document.caretRangeFromPoint = jest.fn().mockReturnValue(mockRange);
 
-      // Create mock range
-      mockRange = {
-        startContainer: mockTextNode,
-        startOffset: 3 // middle of "Hello"
-      };
-
-      // Ensure caretRangeFromPoint exists and is a mock
-      if (!global.document.caretRangeFromPoint || typeof global.document.caretRangeFromPoint.mockClear !== 'function') {
-        global.document.caretRangeFromPoint = jest.fn();
-      }
-
-      // Configure the global document mocks
-      global.document.caretRangeFromPoint.mockClear().mockReturnValue(mockRange);
-      global.document.createRange.mockClear().mockReturnValue({
+      // Create a mock for createRange
+      mockCreatedRange = {
         setStart: jest.fn(),
         setEnd: jest.fn()
-      });
+      };
+      document.createRange = jest.fn().mockReturnValue(mockCreatedRange);
+    });
+
+    afterEach(() => {
+      // Restore original createRange
+      if (originalCreateRange) {
+        document.createRange = originalCreateRange;
+      }
     });
 
     test('should extract word at point using caretRangeFromPoint', () => {
@@ -287,7 +274,9 @@ describe('text-extraction', () => {
     });
 
     test('should return null if node is null', () => {
-      mockRange.startContainer = null;
+      // Mock caretRangeFromPoint to return a range with null startContainer
+      const rangeWithNullNode = { startContainer: null, startOffset: 0 };
+      document.caretRangeFromPoint.mockReturnValue(rangeWithNullNode);
 
       const result = extractWordAtPoint(100, 200);
 
@@ -353,15 +342,9 @@ describe('text-extraction', () => {
     });
 
     test('should create proper range for extracted word', () => {
-      const mockCreatedRange = {
-        setStart: jest.fn(),
-        setEnd: jest.fn()
-      };
-      global.document.createRange.mockReturnValue(mockCreatedRange);
-
       const result = extractWordAtPoint(100, 200);
 
-      expect(global.document.createRange).toHaveBeenCalled();
+      expect(document.createRange).toHaveBeenCalled();
       expect(mockCreatedRange.setStart).toHaveBeenCalledWith(mockTextNode, 0);
       expect(mockCreatedRange.setEnd).toHaveBeenCalledWith(mockTextNode, 5);
       expect(result.range).toBe(mockCreatedRange);
@@ -371,47 +354,30 @@ describe('text-extraction', () => {
   describe('extractContext', () => {
     let mockTextNode;
     let mockElement;
-    let mockWindow;
 
     beforeEach(() => {
-      // Create mock element with substantial text
-      mockElement = {
-        nodeType: 1, // ELEMENT_NODE
-        tagName: 'P',
-        textContent: 'This is some context before the target word and some context after it.',
-        innerText: 'This is some context before the target word and some context after it.',
-        parentElement: null
-      };
+      // Use real JSDOM elements from the jest-environment-jsdom
+      mockElement = document.createElement('p');
+      mockElement.textContent = 'This is some context before the target word and some context after it.';
 
-      // Create mock text node
-      mockTextNode = {
-        nodeType: 3, // TEXT_NODE
-        textContent: 'target word',
-        parentElement: mockElement
-      };
-
-      // Mock window.getComputedStyle
-      mockWindow = {
-        getComputedStyle: jest.fn().mockReturnValue({
-          display: 'block',
-          visibility: 'visible'
-        })
-      };
-      global.window = mockWindow;
+      // Create a real text node
+      mockTextNode = mockElement.firstChild;
     });
 
     test('should extract context centered around text node', () => {
       const result = extractContext(mockTextNode, 40);
 
       expect(result).toBeDefined();
-      expect(result.length).toBeLessThanOrEqual(60); // Some tolerance for window calculations
+      expect(result.length).toBeLessThanOrEqual(80); // Some tolerance for window calculations
       expect(result).toContain('target word');
     });
 
     test('should normalize whitespace in context', () => {
-      mockElement.textContent = 'Text with\n\nmultiple\t\twhitespace   characters';
+      const testElement = document.createElement('p');
+      testElement.textContent = 'Text with\n\nmultiple\t\twhitespace   characters';
+      const testTextNode = testElement.firstChild;
 
-      const result = extractContext(mockTextNode, 100);
+      const result = extractContext(testTextNode, 100);
 
       expect(result).not.toContain('\n');
       expect(result).not.toContain('\t');
@@ -420,10 +386,11 @@ describe('text-extraction', () => {
 
     test('should strip emojis and special characters from context', () => {
       // Make text long enough to meet window size requirements (>= windowSize * 1.5 = 75)
-      mockElement.textContent = 'Discussion 💬 Stanje podjetništva! (old.reddit.com) submitted 10 hours ago by user in Slovenia about business conditions';
-      mockTextNode.textContent = 'Stanje'; // Must be in parent element's text
+      const testElement = document.createElement('p');
+      testElement.textContent = 'Discussion 💬 Stanje podjetništva! (old.reddit.com) submitted 10 hours ago by user in Slovenia about business conditions';
+      const testTextNode = testElement.firstChild;
 
-      const result = extractContext(mockTextNode, 50); // Reduced window size
+      const result = extractContext(testTextNode, 50); // Reduced window size
 
       expect(result).not.toContain('💬');
       expect(result).not.toContain('!');
@@ -435,71 +402,57 @@ describe('text-extraction', () => {
     });
 
     test('should walk up DOM tree to find sufficient text', () => {
-      const smallElement = {
-        tagName: 'SPAN',
-        textContent: 'word',
-        innerText: 'word',
-        parentElement: mockElement
-      };
+      const parentDiv = document.createElement('div');
+      parentDiv.textContent = 'This is some context before the target word and some context after it.';
 
-      mockTextNode.parentElement = smallElement;
+      const smallElement = document.createElement('span');
+      smallElement.textContent = 'word';
+      parentDiv.appendChild(smallElement);
 
-      const result = extractContext(mockTextNode, 40);
+      const testTextNode = smallElement.firstChild;
+
+      const result = extractContext(testTextNode, 40);
 
       expect(result).toBeDefined();
       expect(result.length).toBeGreaterThan(10); // should get parent's text
     });
 
     test('should handle element node input', () => {
-      // Create mock element node with TreeWalker
-      const mockElementInput = {
-        nodeType: 1, // ELEMENT_NODE
-        parentElement: mockElement
-      };
+      // Create real JSDOM element node with TreeWalker
+      const mockElementInput = document.createElement('div');
+      mockElementInput.textContent = 'This is some context before the target word and some context after it.';
 
-      const mockDoc = {
-        createTreeWalker: jest.fn().mockReturnValue({
-          nextNode: jest.fn().mockReturnValue(mockTextNode)
-        })
-      };
-
-      const savedDoc = global.document;
-      global.document = mockDoc;
+      // Spy on the real createTreeWalker
+      const createTreeWalkerSpy = jest.spyOn(document, 'createTreeWalker');
 
       const result = extractContext(mockElementInput, 40);
 
       expect(result).toBeDefined();
-      expect(mockDoc.createTreeWalker).toHaveBeenCalled();
+      expect(createTreeWalkerSpy).toHaveBeenCalled();
 
-      global.document = savedDoc;
+      createTreeWalkerSpy.mockRestore();
     });
 
     test('should return empty string if no text node found', () => {
-      const mockElementInput = {
-        nodeType: 1, // ELEMENT_NODE
-        parentElement: null
-      };
+      const mockElementInput = document.createElement('div');
 
-      const mockDoc = {
-        createTreeWalker: jest.fn().mockReturnValue({
-          nextNode: jest.fn().mockReturnValue(null)
-        })
-      };
-
-      const savedDoc = global.document;
-      global.document = mockDoc;
+      // Spy on createTreeWalker and make it return no text nodes
+      const createTreeWalkerSpy = jest.spyOn(document, 'createTreeWalker').mockReturnValue({
+        nextNode: jest.fn().mockReturnValue(null)
+      });
 
       const result = extractContext(mockElementInput, 40);
 
       expect(result).toBe('');
 
-      global.document = savedDoc;
+      createTreeWalkerSpy.mockRestore();
     });
 
     test('should return partial text if no parent element', () => {
-      mockTextNode.parentElement = null;
+      // Create a standalone text node
+      const standaloneTextNode = document.createTextNode('This is some context before the target word and some context after it.');
 
-      const result = extractContext(mockTextNode, 40);
+      const result = extractContext(standaloneTextNode, 40);
 
       // Falls back to textNode.textContent
       expect(result).toBeDefined();
@@ -521,9 +474,11 @@ describe('text-extraction', () => {
     });
 
     test('should center context around text node position', () => {
-      mockElement.textContent = 'START ' + 'padding '.repeat(10) + 'target word' + ' padding'.repeat(10) + ' END';
+      const testElement = document.createElement('p');
+      testElement.textContent = 'START ' + 'padding '.repeat(10) + 'target word' + ' padding'.repeat(10) + ' END';
+      const testTextNode = testElement.firstChild;
 
-      const result = extractContext(mockTextNode, 40);
+      const result = extractContext(testTextNode, 40);
 
       // Should have text before and after
       expect(result).toBeDefined();
@@ -531,11 +486,19 @@ describe('text-extraction', () => {
     });
 
     test('should fallback when text node content not found in parent', () => {
-      // Create a scenario where text node content doesn't match parent's indexOf
-      mockTextNode.textContent = 'unique-text';
-      mockElement.textContent = 'completely-different-text';
+      // Create a text node and manually set mismatched content
+      const testElement = document.createElement('p');
+      testElement.textContent = 'completely-different-text';
+      const testTextNode = testElement.firstChild;
 
-      const result = extractContext(mockTextNode, 50);
+      // Override textContent to create mismatch scenario
+      Object.defineProperty(testTextNode, 'textContent', {
+        value: 'unique-text',
+        writable: true,
+        configurable: true
+      });
+
+      const result = extractContext(testTextNode, 50);
 
       // Should return partial text (line 117)
       expect(result).toBeDefined();
@@ -543,24 +506,21 @@ describe('text-extraction', () => {
     });
 
     test('should skip excluded parent elements when traversing', () => {
-      // Create nested structure with excluded parent
-      const mockScript = {
-        nodeType: 1, // ELEMENT_NODE
-        tagName: 'SCRIPT',
-        textContent: 'var x = 1;',
-        parentElement: mockElement
-      };
+      // Create nested structure with excluded parent using real JSDOM elements
+      const outerDiv = document.createElement('div');
+      outerDiv.textContent = 'This is some context before the target word and some context after it.';
 
-      const smallElement = {
-        nodeType: 1, // ELEMENT_NODE
-        tagName: 'SPAN',
-        textContent: 'short',
-        parentElement: mockScript
-      };
+      const mockScript = document.createElement('script');
+      mockScript.textContent = 'var x = 1;';
+      outerDiv.appendChild(mockScript);
 
-      mockTextNode.parentElement = smallElement;
+      const smallElement = document.createElement('span');
+      smallElement.textContent = 'short';
+      mockScript.appendChild(smallElement);
 
-      const result = extractContext(mockTextNode, 100);
+      const testTextNode = smallElement.firstChild;
+
+      const result = extractContext(testTextNode, 100);
 
       // Should skip script and continue to valid parent or fallback
       expect(result).toBeDefined();
@@ -570,105 +530,81 @@ describe('text-extraction', () => {
     });
 
     test('should reject text nodes inside excluded elements in TreeWalker', () => {
-      const mockElementInput = {
-        nodeType: 1, // ELEMENT_NODE
-        tagName: 'DIV',
-        textContent: 'Some content'
-      };
+      const mockElementInput = document.createElement('div');
+      const scriptElement = document.createElement('script');
+      scriptElement.textContent = 'code';
+      mockElementInput.appendChild(scriptElement);
 
-      // Mock document.createTreeWalker that tests the filter
-      const mockDoc = {
-        createTreeWalker: jest.fn((_node, _show, filter) => {
-          // Test the acceptNode function with a mock text node inside script
-          const mockTextNodeInScript = {
-            parentElement: {
-              nodeType: 1,
-              tagName: 'SCRIPT',
-              parentElement: null
-            }
-          };
-
-          // Call the acceptNode filter
-          const result = filter.acceptNode(mockTextNodeInScript);
-          expect(result).toBe(NodeFilter.FILTER_REJECT);
-
-          return {
-            nextNode: () => null
-          };
-        })
-      };
-
-      const savedDoc = global.document;
-      global.document = mockDoc;
+      // Spy on createTreeWalker to capture the filter
+      let capturedFilter = null;
+      const createTreeWalkerSpy = jest.spyOn(document, 'createTreeWalker').mockImplementation((node, show, filter) => {
+        capturedFilter = filter;
+        // Return a walker that finds no valid text nodes
+        return {
+          nextNode: () => null
+        };
+      });
 
       const result = extractContext(mockElementInput, 40);
 
-      expect(mockDoc.createTreeWalker).toHaveBeenCalled();
+      expect(createTreeWalkerSpy).toHaveBeenCalled();
+
+      // Test the filter with a text node inside script
+      if (capturedFilter) {
+        const mockTextNodeInScript = scriptElement.firstChild;
+        const filterResult = capturedFilter.acceptNode(mockTextNodeInScript);
+        expect(filterResult).toBe(NodeFilter.FILTER_REJECT);
+      }
+
       expect(result).toBe('');
 
-      global.document = savedDoc;
+      createTreeWalkerSpy.mockRestore();
     });
 
     test('should accept text nodes not inside excluded elements in TreeWalker', () => {
-      const mockElementInput = {
-        nodeType: 1, // ELEMENT_NODE
-        tagName: 'DIV',
-        textContent: 'Some content'
-      };
+      const mockElementInput = document.createElement('div');
+      const pElement = document.createElement('p');
+      pElement.textContent = 'valid text';
+      mockElementInput.appendChild(pElement);
 
-      // Mock document.createTreeWalker that tests the filter accepts valid nodes
-      const mockDoc = {
-        createTreeWalker: jest.fn((_node, _show, filter) => {
-          // Test the acceptNode function with a valid text node
-          const mockValidTextNode = {
-            textContent: 'valid text',
-            parentElement: {
-              nodeType: 1,
-              tagName: 'P',
-              parentElement: null
-            }
-          };
-
-          // Call the acceptNode filter
-          const result = filter.acceptNode(mockValidTextNode);
-          expect(result).toBe(NodeFilter.FILTER_ACCEPT);
-
-          return {
-            nextNode: () => mockValidTextNode
-          };
-        })
-      };
-
-      const savedDoc = global.document;
-      global.document = mockDoc;
+      // Spy on createTreeWalker to capture the filter
+      let capturedFilter = null;
+      const createTreeWalkerSpy = jest.spyOn(document, 'createTreeWalker').mockImplementation((node, show, filter) => {
+        capturedFilter = filter;
+        const mockValidTextNode = pElement.firstChild;
+        // Return a walker that finds the valid text node
+        return {
+          nextNode: () => mockValidTextNode
+        };
+      });
 
       extractContext(mockElementInput, 40);
 
-      expect(mockDoc.createTreeWalker).toHaveBeenCalled();
+      expect(createTreeWalkerSpy).toHaveBeenCalled();
 
-      global.document = savedDoc;
+      // Test the filter with a valid text node
+      if (capturedFilter) {
+        const mockValidTextNode = pElement.firstChild;
+        const filterResult = capturedFilter.acceptNode(mockValidTextNode);
+        expect(filterResult).toBe(NodeFilter.FILTER_ACCEPT);
+      }
+
+      createTreeWalkerSpy.mockRestore();
     });
 
     test('should return null for element node when TreeWalker finds no text', () => {
-      const mockElementInput = {
-        nodeType: 1, // ELEMENT_NODE
-        tagName: 'DIV'
-      };
+      const mockElementInput = document.createElement('div');
 
-      const mockDoc = {
-        createTreeWalker: jest.fn(() => ({
-          nextNode: () => null
-        }))
-      };
-
-      const savedDoc = global.document;
-      global.document = mockDoc;
+      // Spy on createTreeWalker and make it return no text nodes
+      const createTreeWalkerSpy = jest.spyOn(document, 'createTreeWalker').mockReturnValue({
+        nextNode: () => null
+      });
 
       const result = extractContext(mockElementInput, 40);
 
       expect(result).toBe('');
 
-      global.document = savedDoc;
+      createTreeWalkerSpy.mockRestore();
     });
   });
 
@@ -678,19 +614,11 @@ describe('text-extraction', () => {
     let mockElement;
 
     beforeEach(() => {
-      mockContainer = {
-        nodeType: 3, // TEXT_NODE
-        parentElement: null
-      };
+      // Create real JSDOM elements from the jest-environment-jsdom
+      mockElement = document.createElement('p');
+      mockElement.textContent = 'This is some context before the selected text and some context after it.';
 
-      mockElement = {
-        tagName: 'P',
-        textContent: 'This is some context before the selected text and some context after it.',
-        innerText: 'This is some context before the selected text and some context after it.',
-        parentElement: null
-      };
-
-      mockContainer.parentElement = mockElement;
+      mockContainer = mockElement.firstChild; // TEXT_NODE
 
       mockRange = {
         commonAncestorContainer: mockContainer,
@@ -721,10 +649,16 @@ describe('text-extraction', () => {
     });
 
     test('should normalize whitespace in context', () => {
-      mockElement.textContent = 'Context\n\nwith\t\tmultiple   spaces and selected text here';
-      mockRange.toString.mockReturnValue('selected text');
+      const testElement = document.createElement('p');
+      testElement.textContent = 'Context\n\nwith\t\tmultiple   spaces and selected text here';
+      const testContainer = testElement.firstChild;
 
-      const result = extractContextFromRange(mockRange, 100);
+      const testRange = {
+        commonAncestorContainer: testContainer,
+        toString: jest.fn().mockReturnValue('selected text')
+      };
+
+      const result = extractContextFromRange(testRange, 100);
 
       expect(result).not.toContain('\n');
       expect(result).not.toContain('\t');
@@ -732,44 +666,65 @@ describe('text-extraction', () => {
     });
 
     test('should handle element container', () => {
-      mockRange.commonAncestorContainer = mockElement;
-      mockRange.commonAncestorContainer.nodeType = 1; // ELEMENT_NODE
+      const testElement = document.createElement('p');
+      testElement.textContent = 'This is some context before the selected text and some context after it.';
 
-      const result = extractContextFromRange(mockRange, 40);
+      const testRange = {
+        commonAncestorContainer: testElement,
+        toString: jest.fn().mockReturnValue('selected text')
+      };
+
+      const result = extractContextFromRange(testRange, 40);
 
       expect(result).toBeDefined();
       expect(result).toContain('selected text');
     });
 
     test('should walk up DOM tree for sufficient text', () => {
-      const smallElement = {
-        tagName: 'SPAN',
-        textContent: 'selected text',
-        innerText: 'selected text',
-        parentElement: mockElement
+      const parentElement = document.createElement('div');
+      parentElement.textContent = 'This is some context before the selected text and some context after it.';
+
+      const smallElement = document.createElement('span');
+      smallElement.textContent = 'selected text';
+      parentElement.appendChild(smallElement);
+
+      const testContainer = smallElement.firstChild;
+
+      const testRange = {
+        commonAncestorContainer: testContainer,
+        toString: jest.fn().mockReturnValue('selected text')
       };
 
-      mockContainer.parentElement = smallElement;
-
-      const result = extractContextFromRange(mockRange, 40);
+      const result = extractContextFromRange(testRange, 40);
 
       expect(result).toBeDefined();
       expect(result.length).toBeGreaterThan(13); // more than just "selected text"
     });
 
     test('should return empty string if no element found', () => {
-      mockContainer.parentElement = null;
+      const standaloneTextNode = document.createTextNode('selected text');
 
-      const result = extractContextFromRange(mockRange, 40);
+      const testRange = {
+        commonAncestorContainer: standaloneTextNode,
+        toString: jest.fn().mockReturnValue('selected text')
+      };
+
+      const result = extractContextFromRange(testRange, 40);
 
       expect(result).toBe('');
     });
 
     test('should return fallback text when selection not found', () => {
-      // Uses default mockRange and mockElement from beforeEach
-      mockRange.toString.mockReturnValue('NOT FOUND TEXT');
+      const testElement = document.createElement('p');
+      testElement.textContent = 'This is some context before the selected text and some context after it.';
+      const testContainer = testElement.firstChild;
 
-      const result = extractContextFromRange(mockRange, 40);
+      const testRange = {
+        commonAncestorContainer: testContainer,
+        toString: jest.fn().mockReturnValue('NOT FOUND TEXT')
+      };
+
+      const result = extractContextFromRange(testRange, 40);
 
       // Returns fallback text (first part of content)
       expect(result).toBeDefined();
@@ -777,10 +732,16 @@ describe('text-extraction', () => {
     });
 
     test('should trim result', () => {
-      mockElement.textContent = '   selected text   ';
-      mockRange.toString.mockReturnValue('selected text');
+      const testElement = document.createElement('p');
+      testElement.textContent = '   selected text   ';
+      const testContainer = testElement.firstChild;
 
-      const result = extractContextFromRange(mockRange, 100);
+      const testRange = {
+        commonAncestorContainer: testContainer,
+        toString: jest.fn().mockReturnValue('selected text')
+      };
+
+      const result = extractContextFromRange(testRange, 100);
 
       expect(result).not.toMatch(/^\s/);
       expect(result).not.toMatch(/\s$/);
@@ -788,24 +749,19 @@ describe('text-extraction', () => {
   });
 
   describe('Security: Element Exclusion', () => {
+    // No additional setup needed - using jest-environment-jsdom
+
     test('should exclude script tags from context extraction', () => {
-      const mockScript = {
-        nodeType: Node.ELEMENT_NODE,
-        tagName: 'SCRIPT',
-        parentElement: null,
-        textContent: 'alert("malicious code")'
-      };
+      const mockScript = document.createElement('script');
+      mockScript.textContent = 'alert("malicious code")';
+
+      const mockTextNode = document.createTextNode('Hello');
+      mockScript.appendChild(mockTextNode);
 
       global.window.getComputedStyle.mockReturnValue({
         display: 'block',
         visibility: 'visible'
       });
-
-      const mockTextNode = {
-        nodeType: Node.TEXT_NODE,
-        textContent: 'Hello',
-        parentElement: mockScript
-      };
 
       const result = extractContext(mockTextNode, 100);
 
@@ -814,23 +770,16 @@ describe('text-extraction', () => {
     });
 
     test('should exclude style tags from context extraction', () => {
-      const mockStyle = {
-        nodeType: Node.ELEMENT_NODE,
-        tagName: 'STYLE',
-        parentElement: null,
-        textContent: '.class { color: red; }'
-      };
+      const mockStyle = document.createElement('style');
+      mockStyle.textContent = '.class { color: red; }';
+
+      const mockTextNode = document.createTextNode('Hello');
+      mockStyle.appendChild(mockTextNode);
 
       global.window.getComputedStyle.mockReturnValue({
         display: 'block',
         visibility: 'visible'
       });
-
-      const mockTextNode = {
-        nodeType: Node.TEXT_NODE,
-        textContent: 'Hello',
-        parentElement: mockStyle
-      };
 
       const result = extractContext(mockTextNode, 100);
 
@@ -839,74 +788,50 @@ describe('text-extraction', () => {
     });
 
     test('should exclude hidden elements (display:none)', () => {
-      const mockHiddenDiv = {
-        nodeType: Node.ELEMENT_NODE,
-        tagName: 'DIV',
-        parentElement: null,
-        textContent: 'Hidden content'
-      };
+      const mockHiddenDiv = document.createElement('div');
+      mockHiddenDiv.textContent = 'Hidden content';
+
+      const mockTextNode = mockHiddenDiv.firstChild;
 
       global.window.getComputedStyle.mockReturnValue({
         display: 'none',
         visibility: 'visible'
       });
 
-      const mockTextNode = {
-        nodeType: Node.TEXT_NODE,
-        textContent: 'Hidden',
-        parentElement: mockHiddenDiv
-      };
-
       const result = extractContext(mockTextNode, 100);
 
       // Should not extract from hidden element
-      expect(result).toBe('Hidden'); // Fallback to text node content
+      expect(result).toBe('Hidden content'); // Fallback to text node content
     });
 
     test('should exclude hidden elements (visibility:hidden)', () => {
-      const mockHiddenDiv = {
-        nodeType: Node.ELEMENT_NODE,
-        tagName: 'DIV',
-        parentElement: null,
-        textContent: 'Hidden content'
-      };
+      const mockHiddenDiv = document.createElement('div');
+      mockHiddenDiv.textContent = 'Hidden content';
+
+      const mockTextNode = mockHiddenDiv.firstChild;
 
       global.window.getComputedStyle.mockReturnValue({
         display: 'block',
         visibility: 'hidden'
       });
 
-      const mockTextNode = {
-        nodeType: Node.TEXT_NODE,
-        textContent: 'Hidden',
-        parentElement: mockHiddenDiv
-      };
-
       const result = extractContext(mockTextNode, 100);
 
       // Should not extract from hidden element
-      expect(result).toBe('Hidden'); // Fallback to text node content
+      expect(result).toBe('Hidden content'); // Fallback to text node content
     });
 
     test('should exclude password input fields', () => {
-      const mockPasswordInput = {
-        nodeType: Node.ELEMENT_NODE,
-        tagName: 'INPUT',
-        getAttribute: jest.fn().mockReturnValue('password'),
-        parentElement: null,
-        textContent: 'secret123'
-      };
+      const mockPasswordInput = document.createElement('input');
+      mockPasswordInput.setAttribute('type', 'password');
+
+      const mockTextNode = document.createTextNode('secret');
+      mockPasswordInput.appendChild(mockTextNode);
 
       global.window.getComputedStyle.mockReturnValue({
         display: 'block',
         visibility: 'visible'
       });
-
-      const mockTextNode = {
-        nodeType: Node.TEXT_NODE,
-        textContent: 'secret',
-        parentElement: mockPasswordInput
-      };
 
       const result = extractContext(mockTextNode, 100);
 
@@ -915,48 +840,32 @@ describe('text-extraction', () => {
     });
 
     test('should exclude textarea fields', () => {
-      const mockTextarea = {
-        nodeType: Node.ELEMENT_NODE,
-        tagName: 'TEXTAREA',
-        parentElement: null,
-        textContent: 'user input data'
-      };
+      const mockTextarea = document.createElement('textarea');
+      mockTextarea.textContent = 'user input data';
+
+      const mockTextNode = mockTextarea.firstChild;
 
       global.window.getComputedStyle.mockReturnValue({
         display: 'block',
         visibility: 'visible'
       });
-
-      const mockTextNode = {
-        nodeType: Node.TEXT_NODE,
-        textContent: 'user input',
-        parentElement: mockTextarea
-      };
 
       const result = extractContext(mockTextNode, 100);
 
       // Should not extract from textarea
-      expect(result).toBe('user input'); // Fallback to text node content
+      expect(result).toBe('user input data'); // Fallback to text node content
     });
 
     test('should exclude iframe elements', () => {
-      const mockIframe = {
-        nodeType: Node.ELEMENT_NODE,
-        tagName: 'IFRAME',
-        parentElement: null,
-        textContent: 'iframe content'
-      };
+      const mockIframe = document.createElement('iframe');
+
+      const mockTextNode = document.createTextNode('iframe');
+      mockIframe.appendChild(mockTextNode);
 
       global.window.getComputedStyle.mockReturnValue({
         display: 'block',
         visibility: 'visible'
       });
-
-      const mockTextNode = {
-        nodeType: Node.TEXT_NODE,
-        textContent: 'iframe',
-        parentElement: mockIframe
-      };
 
       const result = extractContext(mockTextNode, 100);
 

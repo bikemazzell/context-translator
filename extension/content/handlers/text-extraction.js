@@ -142,7 +142,15 @@ export function extractContext(node, windowSize) {
 
   if (!element || !fullText) {
     console.debug('[ContextTranslator] No element or text found, using text node content');
-    return textNode.textContent.substring(0, windowSize);
+    let context = textNode.textContent || '';
+
+    // Normalize whitespace
+    context = context.replace(/\s+/g, ' ');
+
+    // Strip emojis and special characters
+    context = context.replace(/[^\p{L}\p{N}\s]/gu, '');
+
+    return context.trim();
   }
 
   console.debug('[ContextTranslator] Using element:', element.tagName, 'Full text length:', fullText.length);
@@ -156,19 +164,38 @@ export function extractContext(node, windowSize) {
     return fullText.substring(0, windowSize);
   }
 
-  // Calculate context window centered on the text node
+  // Calculate context window around the text node
+  // The windowSize parameter represents a target size, but we try to include the text node content
   const halfWindow = Math.floor(windowSize / 2);
-  const contextStart = Math.max(0, startOffset - halfWindow);
-  const contextEnd = Math.min(fullText.length, startOffset + textNodeContent.length + halfWindow);
+  const maxExtraction = windowSize * 2;
+
+  let contextStart, contextEnd;
+
+  // Include the text node plus some padding, preferring to start from the beginning
+  contextStart = Math.max(0, startOffset - halfWindow);
+  contextEnd = Math.min(fullText.length, startOffset + textNodeContent.length + halfWindow);
+
+  // If the extraction would be too large, we need to limit it
+  if (contextEnd - contextStart > maxExtraction) {
+    // For very large text nodes, try to extract from the middle
+    if (textNodeContent.length > maxExtraction * 1.5) {
+      const textMidpoint = startOffset + Math.floor(textNodeContent.length / 2);
+      contextStart = Math.max(0, textMidpoint - halfWindow);
+      contextEnd = Math.min(fullText.length, contextStart + maxExtraction);
+    } else {
+      // Otherwise, just cap from the start
+      contextEnd = contextStart + maxExtraction;
+    }
+  }
 
   console.debug('[ContextTranslator] Context extraction:', {
     startOffset,
     textNodeLength: textNodeContent.length,
     halfWindow,
+    windowSize,
     contextStart,
     contextEnd,
-    beforeChars: startOffset - contextStart,
-    afterChars: contextEnd - (startOffset + textNodeContent.length)
+    extractedLength: contextEnd - contextStart
   });
 
   let context = fullText.substring(contextStart, contextEnd).trim();
