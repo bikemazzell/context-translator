@@ -6,6 +6,11 @@
           "version": "1.0.12",
           "update_link": "https://github.com/anthropics/context-translator/releases/download/v1.0.12/context-translator-1.0.12.xpi",
           "update_info_url": "https://github.com/anthropics/context-translator/releases/tag/v1.0.12"
+        },
+        {
+          "version": "1.0.12",
+          "update_link": "https://github.com/bikemazzell/context-translator/releases/download/v1.0.12/context-translator-1.0.12.xpi",
+          "update_hash": "sha256:962c0f9129951b1f3de07f8a9c140f7c0531100e8f74e0fccda83fa2107b8ed2"
         }
       ]
     }
