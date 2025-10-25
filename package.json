@@ -1,6 +1,6 @@
 {
   "name": "context-translator",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Firefox extension for contextual translation using local LLMs",
   "type": "module",
   "scripts": {
@@ -9,6 +9,7 @@
     "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
     "lint": "eslint extension/**/*.js",
     "lint:fix": "eslint extension/**/*.js --fix",
+    "lint:mozilla": "./scripts/package-extension.sh && web-ext lint --source-dir=dist/package",
     "format": "prettier --write \"extension/**/*.js\"",
     "format:check": "prettier --check \"extension/**/*.js\"",
     "build": "npm run lint && npm test && ./scripts/package-extension.sh",
@@ -31,6 +32,7 @@
     "globals": "^16.4.0",
     "jest": "30.2.0",
     "jest-environment-jsdom": "30.2.0",
-    "prettier": "^3.6.2"
+    "prettier": "^3.6.2",
+    "web-ext": "^9.1.0"
   }
 }

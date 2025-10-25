@@ -50,13 +50,16 @@ export class ContentController {
   async initialize() {
     try {
       await this.settingsManager.load();
-      this.logger.debug('Settings loaded:', this.settingsManager.getAll());
+
+      // Get extension version from manifest
+      const manifest = this.browser.runtime.getManifest();
+      const settings = this.settingsManager.getAll();
+
+      this.logger.info(`Context Translator v${manifest.version} - Mode: ${settings.displayMode}, Enabled: ${settings.enabled}`);
 
       // Create bound message handler
       this._messageHandler = this.handleMessage.bind(this);
       this.browser.runtime.onMessage.addListener(this._messageHandler);
-
-      this.logger.debug('Content script initialized');
     } catch (error) {
       this.logger.error('Failed to initialize:', error);
     }

@@ -25,9 +25,9 @@ export class SettingsManager {
       if (stored.settings) {
         // Merge stored settings with defaults (preserve new defaults)
         this.settings = { ...CONFIG.defaults, ...stored.settings };
-        logger.info('Settings loaded:', this.settings);
+        logger.debug('Settings loaded from storage');
       } else {
-        logger.info('No stored settings, using defaults');
+        logger.debug('No stored settings, using defaults');
       }
       this.loaded = true;
       return this.settings;

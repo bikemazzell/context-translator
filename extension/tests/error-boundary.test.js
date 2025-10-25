@@ -9,14 +9,10 @@ import { logger } from '../shared/logger.js';
 describe('Error Boundary', () => {
   it('should not crash when window is undefined', () => {
     delete global.window;
-    const loggerInfoSpy = jest.spyOn(logger, 'info').mockImplementation(() => {});
 
     expect(() => {
       initializeErrorBoundary();
     }).not.toThrow();
-
-    expect(loggerInfoSpy).toHaveBeenCalledWith('Error boundary initialized');
-    loggerInfoSpy.mockRestore();
   });
 
   it('should handle error events when window is defined', () => {

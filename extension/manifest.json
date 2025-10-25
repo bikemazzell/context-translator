@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Context Translator",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Context-aware translation using local LLM - No backend required!",
   "author": "Vincent (v)",
   "homepage_url": "https://github.com/anthropics/context-translator",
@@ -15,8 +15,9 @@
     "http://127.0.0.1/*"
   ],
   "background": {
-    "service_worker": "background/service-worker.js",
-    "type": "module"
+    "scripts": [
+      "background/service-worker.js"
+    ]
   },
   "content_scripts": [
     {
@@ -38,7 +39,6 @@
         "*://*.healthcare.gov/*"
       ],
       "js": [
-        "lib/external/browser-polyfill.js",
         "content/loader.js"
       ],
       "css": [
@@ -51,10 +51,14 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "lib/external/browser-polyfill.js",
-        "content/main.js",
+        "content/*.js",
         "content/handlers/*.js",
         "content/ui/*.js",
+        "controllers/*.js",
+        "core/*.js",
+        "lib/*.js",
+        "lib/translation/*.js",
+        "services/*.js",
         "shared/*.js"
       ],
       "matches": [
@@ -88,7 +92,6 @@
     "gecko": {
       "id": "context-translator@bike-mazzell",
       "strict_min_version": "112.0",
-      "update_url": "https://raw.githubusercontent.com/anthropics/context-translator/main/updates.json",
       "data_collection_permissions": {
         "required": [
           "none"

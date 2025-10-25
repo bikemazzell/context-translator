@@ -42,5 +42,4 @@ export function initializeErrorBoundary() {
   }
 
   errorBoundaryInitialized = true;
-  logger.info('Error boundary initialized');
 }

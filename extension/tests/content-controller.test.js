@@ -52,7 +52,10 @@ describe('ContentController', () => {
         onMessage: {
           addListener: jest.fn(),
           removeListener: jest.fn()
-        }
+        },
+        getManifest: jest.fn().mockReturnValue({
+          version: '1.0.12'
+        })
       }
     };
 
@@ -155,13 +158,15 @@ describe('ContentController', () => {
       );
     });
 
-    it('should log debug info on success', async () => {
-      mockSettingsManager.getAll.mockReturnValue({ darkMode: true });
+    it('should log initialization info on success', async () => {
+      mockSettingsManager.getAll.mockReturnValue({
+        displayMode: 'inline',
+        enabled: false
+      });
 
       await controller.initialize();
 
-      expect(mockLogger.debug).toHaveBeenCalledWith('Settings loaded:', { darkMode: true });
-      expect(mockLogger.debug).toHaveBeenCalledWith('Content script initialized');
+      expect(mockLogger.info).toHaveBeenCalledWith('Context Translator v1.0.12 - Mode: inline, Enabled: false');
     });
 
     it('should handle initialization errors', async () => {

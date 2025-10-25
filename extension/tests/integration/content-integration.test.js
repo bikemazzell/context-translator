@@ -37,7 +37,10 @@ describe('Content Script Integration Tests', () => {
         onMessage: {
           addListener: jest.fn(),
           removeListener: jest.fn()
-        }
+        },
+        getManifest: jest.fn().mockReturnValue({
+          version: '1.0.12'
+        })
       }
     };
 
