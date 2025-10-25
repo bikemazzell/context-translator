@@ -73,13 +73,17 @@ export function extractWordAtOffset(text, offset) {
  * @returns {boolean}
  */
 function shouldExcludeElement(element) {
-  if (!element || !element.tagName) return true;
+  if (!element) return true;
+  if (!element.tagName) return false; // Text nodes and other non-elements should not be excluded by this function
 
   const tag = element.tagName.toLowerCase();
 
   // Exclude script, style, meta, and other non-content tags
   const excludedTags = ['script', 'style', 'meta', 'link', 'noscript', 'iframe', 'object', 'embed'];
   if (excludedTags.includes(tag)) return true;
+
+  // Exclude inline translation elements (our own UI)
+  if (element.classList && element.classList.contains('ct-inline-translation')) return true;
 
   // Exclude hidden elements
   const style = window.getComputedStyle(element);
@@ -96,6 +100,44 @@ function shouldExcludeElement(element) {
   if (tag === 'textarea') return true;
 
   return false;
+}
+
+/**
+ * Extract text content from an element, excluding inline translations
+ * @param {Element} element - Element to extract text from
+ * @returns {string}
+ */
+function getTextContentExcludingTranslations(element) {
+  if (!element) return '';
+
+  const textParts = [];
+
+  // Recursively walk through child nodes
+  function collectText(node) {
+    if (!node) return;
+
+    // Skip excluded elements and their children
+    if (node.nodeType === Node.ELEMENT_NODE && shouldExcludeElement(node)) {
+      return;
+    }
+
+    // Collect text from text nodes
+    if (node.nodeType === Node.TEXT_NODE) {
+      textParts.push(node.textContent);
+      return;
+    }
+
+    // Recursively process child nodes
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      for (const child of node.childNodes) {
+        collectText(child);
+      }
+    }
+  }
+
+  collectText(element);
+
+  return textParts.join('');
 }
 
 /**
@@ -116,6 +158,7 @@ export function extractContext(node, windowSize) {
   // Walk up the DOM tree to find a parent with substantial text
   let element = textNode.parentElement;
   let fullText = '';
+  let bestElement = null;
   let attempts = 0;
   const maxAttempts = 5;
 
@@ -128,8 +171,14 @@ export function extractContext(node, windowSize) {
       continue;
     }
 
-    fullText = element.textContent || element.innerText || '';
-    console.debug(`[ContextTranslator] Attempt ${attempts + 1}: element tag=${element.tagName}, text length=${fullText.length}`);
+    const currentText = getTextContentExcludingTranslations(element);
+    console.debug(`[ContextTranslator] Attempt ${attempts + 1}: element tag=${element.tagName}, text length=${currentText.length}`);
+
+    // Keep track of the best element we've found so far
+    if (currentText.length > fullText.length) {
+      fullText = currentText;
+      bestElement = element;
+    }
 
     // If we have enough text for a good context window, stop
     if (fullText.length >= windowSize * 1.5) {
@@ -139,6 +188,9 @@ export function extractContext(node, windowSize) {
     element = element.parentElement;
     attempts++;
   }
+
+  // Use the best element we found, even if it didn't meet the threshold
+  element = bestElement;
 
   if (!element || !fullText) {
     console.debug('[ContextTranslator] No element or text found, using text node content');
@@ -246,7 +298,7 @@ export function extractContextFromRange(range, windowSize) {
       continue;
     }
 
-    fullText = element.textContent || element.innerText || '';
+    fullText = getTextContentExcludingTranslations(element);
     console.debug(`[ContextTranslator] Attempt ${attempts + 1}: element tag=${element.tagName}, text length=${fullText.length}`);
 
     // If we have enough text for a good context window, stop

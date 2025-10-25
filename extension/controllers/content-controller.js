@@ -82,6 +82,9 @@ export class ContentController {
     this._isActive = true;
     this.logger.debug('Activating translator');
 
+    // Save enabled state to settings
+    await this.settingsManager.set('enabled', true);
+
     this.clickHandler.attach(this._handleTranslationRequest.bind(this));
     this.ui.showToast('Translator activated', 'success');
   }
@@ -94,6 +97,9 @@ export class ContentController {
 
     this._isActive = false;
     this.logger.debug('Deactivating translator');
+
+    // Save enabled state to settings
+    await this.settingsManager.set('enabled', false);
 
     this.clickHandler.detach();
     this.ui.clearAllInlineTranslations();

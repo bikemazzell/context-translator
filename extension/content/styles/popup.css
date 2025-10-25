@@ -1,6 +1,6 @@
 body {
-  width: 280px;
-  padding: 15px;
+  width: 220px;
+  padding: 10px 8px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   margin: 0;
   background: #ffffff;
@@ -15,18 +15,25 @@ body.dark-mode {
   display: none !important;
 }
 .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
+  text-align: center;
+  margin-bottom: 12px;
 }
 .header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   color: #333;
 }
 body.dark-mode .header h3 {
   color: #e0e0e0;
+}
+.version {
+  font-size: 9px;
+  font-weight: normal;
+  color: #999;
+  margin-left: 4px;
+}
+body.dark-mode .version {
+  color: #666;
 }
 .back-btn {
   background: none;
@@ -42,19 +49,20 @@ body.dark-mode .back-btn {
 }
 .control-row {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
-.control-row label {
-  font-size: 14px;
+.control-row > label {
+  font-size: 13px;
   font-weight: 500;
 }
 .toggle-switch {
   position: relative;
-  width: 50px;
-  height: 26px;
-  margin-left: 10px;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
 }
 .toggle-switch input {
   opacity: 0;
@@ -70,13 +78,13 @@ body.dark-mode .back-btn {
   bottom: 0;
   background-color: #ccc;
   transition: 0.3s;
-  border-radius: 26px;
+  border-radius: 24px;
 }
 .slider:before {
   position: absolute;
   content: "";
-  height: 20px;
-  width: 20px;
+  height: 18px;
+  width: 18px;
   left: 3px;
   bottom: 3px;
   background-color: white;
@@ -87,17 +95,17 @@ input:checked + .slider {
   background-color: #0288d1;
 }
 input:checked + .slider:before {
-  transform: translateX(24px);
+  transform: translateX(20px);
 }
 .gear-btn {
   background: none;
   border: none;
-  font-size: 20px;
+  font-size: 17px;
   cursor: pointer;
   color: #666;
-  padding: 5px;
-  margin-left: 10px;
+  padding: 2px;
   line-height: 1;
+  flex-shrink: 0;
 }
 body.dark-mode .gear-btn {
   color: #999;
@@ -109,13 +117,13 @@ body.dark-mode .gear-btn:hover {
   color: #64b5f6;
 }
 .shortcut-hint {
-  font-size: 11px;
-  color: #666;
+  font-size: 10px;
+  color: #999;
   text-align: center;
-  margin-top: 10px;
+  margin-top: 2px;
 }
 body.dark-mode .shortcut-hint {
-  color: #999;
+  color: #666;
 }
 .settings-content {
   font-size: 13px;
@@ -413,11 +421,6 @@ body.dark-mode .language-item.confirm-delete {
 }
 
 /* Utility classes */
-.toggle-with-gear {
-  display: flex;
-  align-items: center;
-}
-
 .setting-section-first {
   margin-top: 0;
   padding-top: 0;

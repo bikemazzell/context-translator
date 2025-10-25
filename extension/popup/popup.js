@@ -256,6 +256,9 @@ function populateSettings() {
   const settings = controller.getCurrentSettings();
   if (!settings) {return;}
 
+  // Set translator toggle state
+  elements.translatorToggle.checked = settings.enabled || false;
+
   elements.sourceLang.value = settings.sourceLang || 'German';
   elements.targetLang.value = settings.targetLang || 'English';
   elements.displayMode.value = settings.displayMode || 'inline';

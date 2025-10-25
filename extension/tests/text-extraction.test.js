@@ -751,6 +751,47 @@ describe('text-extraction', () => {
   describe('Security: Element Exclusion', () => {
     // No additional setup needed - using jest-environment-jsdom
 
+    test('should exclude inline translations from context extraction', () => {
+      const testElement = document.createElement('p');
+
+      // Add text before the wrapper
+      testElement.appendChild(document.createTextNode('Ställen gehalten werden '));
+
+      // Simulate the DOM structure after translation is displayed
+      const wrapper = document.createElement('span');
+      wrapper.className = 'ct-word-wrapper';
+
+      // Original word text
+      const originalText = document.createTextNode('müssten');
+      wrapper.appendChild(originalText);
+
+      // Translation element (child of wrapper)
+      const translation = document.createElement('span');
+      translation.className = 'ct-inline-translation';
+      translation.textContent = 'would have to';
+      wrapper.appendChild(translation);
+
+      testElement.appendChild(wrapper);
+
+      // Mock getComputedStyle to return proper values for testing
+      // The wrapper and translation elements should have visible styles
+      global.window.getComputedStyle.mockReturnValue({
+        display: 'inline',
+        visibility: 'visible'
+      });
+
+      // Extract context from the paragraph element (simulating clicking on any word in it)
+      // We use the first text node which is before the wrapper
+      const firstTextNode = testElement.firstChild;
+      const result = extractContext(firstTextNode, 100);
+
+      // Should contain all original text but NOT the translation
+      expect(result).toContain('müssten');
+      expect(result).toContain('gehalten');
+      expect(result).toContain('Ställen');
+      expect(result).not.toContain('would have to');
+    });
+
     test('should exclude script tags from context extraction', () => {
       const mockScript = document.createElement('script');
       mockScript.textContent = 'alert("malicious code")';

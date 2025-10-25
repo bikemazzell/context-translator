@@ -118,6 +118,10 @@ export function validateSetting(key, value) {
     contextWindowChars: {
       type: 'number',
       validate: (v) => Number.isInteger(v) && v >= 0 && v <= 1000
+    },
+    enabled: {
+      type: 'boolean',
+      validate: (v) => typeof v === 'boolean'
     }
   };
 
