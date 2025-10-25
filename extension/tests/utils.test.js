@@ -191,9 +191,27 @@ describe('truncateText', () => {
 });
 
 describe('isDarkMode', () => {
+  let originalWindow;
+  let matchMediaSpy;
+  let originalMatchMedia;
+
   beforeEach(() => {
-    // Reset global.window before each test
-    delete global.window;
+    // Save original window and matchMedia
+    originalWindow = global.window;
+    originalMatchMedia = window.matchMedia;
+  });
+
+  afterEach(() => {
+    // Restore original window and matchMedia
+    global.window = originalWindow;
+    if (matchMediaSpy) {
+      matchMediaSpy.mockRestore();
+      matchMediaSpy = null;
+    }
+    // Clean up matchMedia if it was added for testing
+    if (originalMatchMedia === undefined) {
+      delete window.matchMedia;
+    }
   });
 
   test('should return true for "dark" mode', () => {
@@ -205,6 +223,7 @@ describe('isDarkMode', () => {
   });
 
   test('should return false for "auto" when window is undefined', () => {
+    delete global.window;
     expect(isDarkMode('auto')).toBe(false);
   });
 
@@ -214,26 +233,46 @@ describe('isDarkMode', () => {
   });
 
   test('should use matchMedia for "auto" mode when available', () => {
-    const matchMediaMock = jest.fn((query) => ({
-      matches: query === '(prefers-color-scheme: dark)'
-    }));
+    // Ensure window.matchMedia exists before spying
+    if (!window.matchMedia) {
+      window.matchMedia = jest.fn();
+    }
 
-    global.window = {
-      matchMedia: matchMediaMock
-    };
+    // Mock window.matchMedia on the existing window object
+    matchMediaSpy = jest.spyOn(window, 'matchMedia').mockImplementation((query) => ({
+      matches: query === '(prefers-color-scheme: dark)',
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn()
+    }));
 
     const result = isDarkMode('auto');
 
-    expect(matchMediaMock).toHaveBeenCalledWith('(prefers-color-scheme: dark)');
+    expect(matchMediaSpy).toHaveBeenCalledWith('(prefers-color-scheme: dark)');
     expect(result).toBe(true);
   });
 
   test('should detect light preference in auto mode', () => {
-    global.window = {
-      matchMedia: (_query) => ({
-        matches: false
-      })
-    };
+    // Ensure window.matchMedia exists before spying
+    if (!window.matchMedia) {
+      window.matchMedia = jest.fn();
+    }
+
+    // Mock window.matchMedia to return dark mode = false
+    matchMediaSpy = jest.spyOn(window, 'matchMedia').mockImplementation((query) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn()
+    }));
 
     expect(isDarkMode('auto')).toBe(false);
   });
