@@ -130,21 +130,25 @@ export function removeInlineTranslation(inlineData) {
     return;
   }
 
-  if (inlineData.wrapper) {
+  // Remove the translation element first if it exists
+  if (inlineData.element && inlineData.element.parentNode) {
+    inlineData.element.parentNode.removeChild(inlineData.element);
+  }
+
+  // Unwrap the wrapper and restore original content
+  if (inlineData.wrapper && inlineData.wrapper.parentNode) {
     const parent = inlineData.wrapper.parentNode;
-    if (parent) {
-      while (inlineData.wrapper.firstChild) {
-        const child = inlineData.wrapper.firstChild;
-        if (child === inlineData.element) {
-          inlineData.wrapper.removeChild(child);
-        } else {
-          parent.insertBefore(child, inlineData.wrapper);
-        }
-      }
-      parent.removeChild(inlineData.wrapper);
+
+    // Move all remaining children out of the wrapper
+    while (inlineData.wrapper.firstChild) {
+      parent.insertBefore(inlineData.wrapper.firstChild, inlineData.wrapper);
     }
-  } else if (inlineData.element && inlineData.element.parentElement) {
-    inlineData.element.parentElement.removeChild(inlineData.element);
+
+    // Remove the empty wrapper
+    parent.removeChild(inlineData.wrapper);
+
+    // Normalize text nodes to merge adjacent text nodes
+    parent.normalize();
   }
 
   const index = inlineTranslations.indexOf(inlineData);
@@ -367,21 +371,36 @@ export function mergeTranslations(centerTranslation, leftTranslations, rightTran
  * @param {object} mergedData - Merged translation data
  */
 export function removeMergedTranslation(mergedData) {
-  if (mergedData.element && mergedData.element.parentElement) {
-    mergedData.element.parentElement.removeChild(mergedData.element);
+  // Remove the translation element first
+  if (mergedData.element && mergedData.element.parentNode) {
+    mergedData.element.parentNode.removeChild(mergedData.element);
   }
 
+  // Unwrap all merged wrappers
   if (mergedData.mergedWrappers) {
+    let commonParent = null;
+
     mergedData.mergedWrappers.forEach(wrapper => {
       if (wrapper && wrapper.parentNode) {
         const parent = wrapper.parentNode;
-        while (wrapper.firstChild) {
-          const child = wrapper.firstChild;
-          parent.insertBefore(child, wrapper);
+        if (!commonParent) {
+          commonParent = parent;
         }
+
+        // Move all children out of the wrapper
+        while (wrapper.firstChild) {
+          parent.insertBefore(wrapper.firstChild, wrapper);
+        }
+
+        // Remove the empty wrapper
         parent.removeChild(wrapper);
       }
     });
+
+    // Normalize the common parent to merge adjacent text nodes
+    if (commonParent) {
+      commonParent.normalize();
+    }
   }
 
   const index = inlineTranslations.indexOf(mergedData);
@@ -396,6 +415,33 @@ export function removeMergedTranslation(mergedData) {
 export function clearAllInlineTranslations() {
   const translations = [...inlineTranslations];
   translations.forEach(t => removeInlineTranslation(t));
+
+  // Clean up any orphaned wrappers that might not be tracked
+  cleanupOrphanedWrappers();
+}
+
+/**
+ * Clean up any orphaned ct-word-wrapper elements that aren't tracked
+ * This ensures complete cleanup even if wrappers were left behind
+ */
+function cleanupOrphanedWrappers() {
+  const orphanedWrappers = document.querySelectorAll('.ct-word-wrapper');
+
+  orphanedWrappers.forEach(wrapper => {
+    const parent = wrapper.parentNode;
+    if (parent) {
+      // Move all children out of the wrapper
+      while (wrapper.firstChild) {
+        parent.insertBefore(wrapper.firstChild, wrapper);
+      }
+      // Remove the empty wrapper
+      parent.removeChild(wrapper);
+    }
+  });
+
+  if (orphanedWrappers.length > 0) {
+    console.debug(`[ContextTranslator] Cleaned up ${orphanedWrappers.length} orphaned wrappers`);
+  }
 }
 
 if (typeof window !== 'undefined') {

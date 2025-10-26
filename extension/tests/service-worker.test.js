@@ -58,7 +58,8 @@ describe('service-worker', () => {
       },
       tabs: {
         query: jest.fn().mockResolvedValue([]),
-        sendMessage: jest.fn().mockResolvedValue({})
+        sendMessage: jest.fn().mockResolvedValue({}),
+        reload: jest.fn().mockResolvedValue()
       }
     };
 
@@ -299,7 +300,8 @@ describe('service-worker', () => {
     });
 
     test('should send toggle message to active tab on toggle-translator command', async () => {
-      mockBrowser.tabs.query.mockResolvedValue([{ id: 123 }]);
+      mockBrowser.tabs.query.mockResolvedValue([{ id: 123, url: 'https://example.com' }]);
+      mockBrowser.tabs.sendMessage.mockResolvedValue({ success: true });
 
       await import('../background/service-worker-main.js');
 
@@ -310,6 +312,8 @@ describe('service-worker', () => {
         active: true,
         currentWindow: true
       });
+
+      // Should be called with retries (at least once)
       expect(mockBrowser.tabs.sendMessage).toHaveBeenCalledWith(123, {
         action: 'toggle'
       });
@@ -327,20 +331,27 @@ describe('service-worker', () => {
     });
 
     test('should handle sendMessage errors gracefully', async () => {
-      mockBrowser.tabs.query.mockResolvedValue([{ id: 123 }]);
+      mockBrowser.tabs.query.mockResolvedValue([{ id: 123, url: 'https://example.com' }]);
       mockBrowser.tabs.sendMessage.mockRejectedValue(new Error('Tab not found'));
+      mockBrowser.tabs.reload.mockResolvedValue();
 
       await import('../background/service-worker-main.js');
 
       const listener = commandListeners[0];
       await listener('toggle-translator');
 
-      // Should not throw, should log error
+      // Should attempt multiple retries, then log error
+      expect(mockBrowser.tabs.sendMessage).toHaveBeenCalledTimes(3); // 3 attempts
+
+      // Should log error after all retries failed
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         '[ContextTranslator]',
-        expect.stringContaining('Failed to send toggle command:'),
-        expect.any(Error)
+        expect.stringContaining('Failed to send toggle command after retries:'),
+        'Tab not found'
       );
+
+      // Should attempt to reload tab
+      expect(mockBrowser.tabs.reload).toHaveBeenCalledWith(123);
     });
 
     test('should ignore unknown commands', async () => {

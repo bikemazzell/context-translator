@@ -29,17 +29,68 @@ export function extractWordAtPoint(x, y) {
 
   if (!node) return null;
 
+  // Ensure we have a text node
+  if (node.nodeType !== Node.TEXT_NODE) {
+    console.warn('[ContextTranslator] Node is not a text node:', node.nodeType);
+    return null;
+  }
+
   const textContent = node.textContent;
   if (!textContent) return null;
 
-  const wordInfo = extractWordAtOffset(textContent, offset);
+  // Clamp the offset to be within the text content
+  const clampedOffset = Math.max(0, Math.min(offset, textContent.length - 1));
+
+  const wordInfo = extractWordAtOffset(textContent, clampedOffset);
   if (!wordInfo) return null;
 
-  const range = document.createRange();
-  range.setStart(node, wordInfo.start);
-  range.setEnd(node, wordInfo.end);
+  // For text nodes, use node.length (which gives the actual character data length)
+  // This is critical for nodes with HTML entities
+  const nodeLength = node.length;
 
-  return { text: wordInfo.text, node, range };
+  if (!nodeLength || nodeLength === 0) {
+    console.warn('[ContextTranslator] Node has no length');
+    return null;
+  }
+
+  // Validate that the offsets are within the node's actual data length
+  if (wordInfo.start < 0 || wordInfo.end > nodeLength || wordInfo.start >= wordInfo.end) {
+    console.warn('[ContextTranslator] Invalid word offsets:', {
+      start: wordInfo.start,
+      end: wordInfo.end,
+      nodeLength,
+      text: wordInfo.text,
+      textContent: textContent.substring(0, 50)
+    });
+    return null;
+  }
+
+  try {
+    const range = document.createRange();
+    range.setStart(node, wordInfo.start);
+    range.setEnd(node, wordInfo.end);
+
+    // Verify the range was created successfully
+    if (range.startOffset !== wordInfo.start || range.endOffset !== wordInfo.end) {
+      console.warn('[ContextTranslator] Range offsets mismatch:', {
+        expected: { start: wordInfo.start, end: wordInfo.end },
+        actual: { start: range.startOffset, end: range.endOffset }
+      });
+      return null;
+    }
+
+    return { text: wordInfo.text, node, range };
+  } catch (error) {
+    console.error('[ContextTranslator] Failed to create range:', error, {
+      start: wordInfo.start,
+      end: wordInfo.end,
+      nodeLength,
+      text: wordInfo.text,
+      nodeType: node.nodeType,
+      textContent: textContent.substring(0, 50)
+    });
+    return null;
+  }
 }
 
 /**
@@ -49,20 +100,44 @@ export function extractWordAtPoint(x, y) {
  * @returns {{text: string, start: number, end: number}|null}
  */
 export function extractWordAtOffset(text, offset) {
+  if (!text || offset < 0 || offset > text.length) {
+    return null;
+  }
+
   const wordBoundary = /[\s.,!?;:()\[\]{}"'«»„""'']/;
 
-  let start = offset;
+  let start = Math.min(offset, text.length);
   while (start > 0 && !wordBoundary.test(text[start - 1])) {
     start--;
   }
 
-  let end = offset;
+  let end = Math.min(offset, text.length);
   while (end < text.length && !wordBoundary.test(text[end])) {
     end++;
   }
 
+  // Ensure bounds are valid
+  start = Math.max(0, start);
+  end = Math.min(text.length, end);
+
+  if (start >= end) {
+    return null;
+  }
+
   const word = text.substring(start, end).trim();
   if (!word) return null;
+
+  // Adjust offsets if trimming removed leading/trailing whitespace
+  const leadingWhitespace = text.substring(start, end).length - text.substring(start, end).trimStart().length;
+  const trailingWhitespace = text.substring(start, end).length - text.substring(start, end).trimEnd().length;
+
+  start += leadingWhitespace;
+  end -= trailingWhitespace;
+
+  // Final validation
+  if (start < 0 || end > text.length || start >= end) {
+    return null;
+  }
 
   return { text: word, start, end };
 }

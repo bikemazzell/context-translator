@@ -74,17 +74,71 @@ browser.storage.onChanged.addListener((changes, areaName) => {
 browser.runtime.onMessage.addListener(handleMessage);
 
 /**
+ * Send message to content script with retry logic
+ * @param {number} tabId - Tab ID
+ * @param {Object} message - Message to send
+ * @param {number} maxRetries - Maximum number of retries
+ * @returns {Promise<any>} Response from content script
+ */
+async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await browser.tabs.sendMessage(tabId, message);
+      logger.debug(`Message sent successfully on attempt ${attempt}`);
+      return response;
+    } catch (error) {
+      lastError = error;
+      logger.debug(`Message send attempt ${attempt} failed:`, error.message);
+
+      if (attempt < maxRetries) {
+        // Wait before retry (exponential backoff: 50ms, 100ms, 200ms)
+        await new Promise(resolve => setTimeout(resolve, 50 * Math.pow(2, attempt - 1)));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+/**
  * Listen for keyboard commands
  */
 browser.commands.onCommand.addListener(async (command) => {
   if (command === 'toggle-translator') {
+    logger.debug('Toggle command received');
+
     const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-    if (tabs.length > 0) {
+    if (tabs.length === 0) {
+      logger.error('No active tab found');
+      return;
+    }
+
+    const tab = tabs[0];
+
+    // Check if tab URL is valid for content scripts
+    if (!tab.url || tab.url.startsWith('about:') || tab.url.startsWith('moz-extension:')) {
+      logger.debug('Cannot inject content script into this page:', tab.url);
+      return;
+    }
+
+    try {
+      await sendMessageWithRetry(tab.id, { action: 'toggle' });
+      logger.debug('Toggle command sent successfully to tab', tab.id);
+    } catch (error) {
+      logger.error('Failed to send toggle command after retries:', error.message);
+
+      // If message failed, content script might not be loaded yet
+      // This can happen on pages that loaded before extension was enabled
+      logger.info('Attempting to reload content script');
+
       try {
-        await browser.tabs.sendMessage(tabs[0].id, { action: 'toggle' });
-        logger.debug('Toggle command sent to active tab');
-      } catch (error) {
-        logger.error('Failed to send toggle command:', error);
+        // Reload the tab to ensure content script is injected
+        await browser.tabs.reload(tab.id);
+        logger.info('Tab reloaded - content script should be available after reload');
+      } catch (reloadError) {
+        logger.error('Failed to reload tab:', reloadError);
       }
     }
   }

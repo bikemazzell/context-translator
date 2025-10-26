@@ -109,8 +109,8 @@ Updates will be posted with a new "Last Updated" date.
 ### Developer Information
 
 - **Developer**: Vincent (v)
-- **Source Code**: https://github.com/anthropics/context-translator
-- **Issues**: https://github.com/anthropics/context-translator/issues
+- **Source Code**: https://github.com/bike-mazzell/context-translator
+- **Issues**: https://github.com/bike-mazzell/context-translator/issues
 
 ### Questions
 

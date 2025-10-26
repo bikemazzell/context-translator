@@ -242,8 +242,14 @@ describe('text-extraction', () => {
 
       // Create a mock for createRange
       mockCreatedRange = {
-        setStart: jest.fn(),
-        setEnd: jest.fn()
+        startOffset: 0,
+        endOffset: 0,
+        setStart: jest.fn(function(node, offset) {
+          this.startOffset = offset;
+        }),
+        setEnd: jest.fn(function(node, offset) {
+          this.endOffset = offset;
+        })
       };
       document.createRange = jest.fn().mockReturnValue(mockCreatedRange);
     });

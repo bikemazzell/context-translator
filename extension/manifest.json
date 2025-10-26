@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Context Translator",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "Context-aware translation using local LLM - No backend required!",
   "author": "Vincent (v)",
-  "homepage_url": "https://github.com/anthropics/context-translator",
+  "homepage_url": "https://github.com/bike-mazzell/context-translator",
   "permissions": [
     "storage",
     "unlimitedStorage",
@@ -101,6 +101,6 @@
   },
   "developer": {
     "name": "Vincent (v)",
-    "url": "https://github.com/anthropics/context-translator"
+    "url": "https://github.com/bike-mazzell/context-translator"
   }
 }

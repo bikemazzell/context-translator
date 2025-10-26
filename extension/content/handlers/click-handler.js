@@ -53,6 +53,12 @@ export function attachClickHandler(onTranslateRequest, dependencies = {}) {
 
     const target = event.target;
 
+    // Check if click is directly on an inline translation element
+    // If so, let it handle its own click event and return early
+    if (target.classList && target.classList.contains('ct-inline-translation')) {
+      return;
+    }
+
     // Check if target should be ignored
     if (shouldIgnoreTarget(target)) {
       // Word wrappers need special handling

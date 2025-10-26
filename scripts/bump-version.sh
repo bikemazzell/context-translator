@@ -62,8 +62,8 @@ const updates = JSON.parse(fs.readFileSync('updates.json', 'utf8'));
 const addonId = 'context-translator@bike-mazzell';
 updates.addons[addonId].updates = [{
   version: '$NEW_VERSION',
-  update_link: 'https://github.com/anthropics/context-translator/releases/download/v$NEW_VERSION/context-translator-$NEW_VERSION.xpi',
-  update_info_url: 'https://github.com/anthropics/context-translator/releases/tag/v$NEW_VERSION'
+  update_link: 'https://github.com/bike-mazzell/context-translator/releases/download/v$NEW_VERSION/context-translator-$NEW_VERSION.xpi',
+  update_info_url: 'https://github.com/bike-mazzell/context-translator/releases/tag/v$NEW_VERSION'
 }];
 fs.writeFileSync('updates.json', JSON.stringify(updates, null, 2) + '\n');
 "
