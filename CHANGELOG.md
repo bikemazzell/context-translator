@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.22] - 2025-10-27
+
 ## [1.0.21] - 2025-10-27
 
 ### Fixed
@@ -141,7 +143,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version Links
 
-- [Unreleased]: https://github.com/bikemazzell/context-translator/compare/v1.0.21...HEAD
+- [Unreleased]: https://github.com/bikemazzell/context-translator/compare/v1.0.22...HEAD
+- [1.0.22]: https://github.com/bikemazzell/context-translator/releases/tag/v1.0.22
 - [1.0.21]: https://github.com/bikemazzell/context-translator/releases/tag/v1.0.21
 - [1.0.20]: https://github.com/bikemazzell/context-translator/releases/tag/v1.0.20
 - [1.0.19]: https://github.com/bikemazzell/context-translator/releases/tag/v1.0.19
