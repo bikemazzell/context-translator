@@ -57,9 +57,14 @@ jobs:
           cp extension/manifest.json dist/package/
 
           # Copy extension files, excluding tests, node_modules, and READMEs
+          # Include all necessary directories: background, content, controllers, core, lib, services, shared, popup, icons
           rsync -a --exclude='tests' --exclude='node_modules' --exclude='*.test.js' --exclude='README.md' \
             extension/background \
             extension/content \
+            extension/controllers \
+            extension/core \
+            extension/lib \
+            extension/services \
             extension/shared \
             extension/popup \
             extension/icons \
@@ -155,6 +160,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Stash any local changes (like package-lock.json from npm install)
+          git stash --include-untracked
 
           # Switch to main branch and pull latest
           git checkout main

@@ -33,6 +33,7 @@ npm run release:dry-run
 1. **Validates environment**
    - Checks git working directory is clean
    - Confirms on main branch (or asks for confirmation)
+   - Pulls latest changes from remote
 
 2. **Runs tests**
    - Executes full test suite
@@ -41,20 +42,24 @@ npm run release:dry-run
 3. **Bumps version**
    - Updates `package.json`
    - Updates `extension/manifest.json`
-   - Updates `updates.json`
    - Updates `CHANGELOG.md` with new version and date
+   - Note: `updates.json` is updated by GitHub Actions after release
 
 4. **Builds package**
    - Runs `./scripts/package-extension.sh`
    - Creates `.xpi` file in `dist/`
 
 5. **Creates git commit and tag**
-   - Commits all version changes
+   - Commits version changes (package.json, manifest.json, CHANGELOG.md)
    - Creates annotated git tag
 
 6. **Pushes to remote** (optional)
    - Asks for confirmation
    - Pushes commit and tag to origin
+   - GitHub Actions workflow will:
+     - Build and sign the extension
+     - Create GitHub release
+     - Update `updates.json` with signed package details
 
 ### Prerequisites
 

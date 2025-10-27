@@ -98,6 +98,15 @@ if [ "$CURRENT_BRANCH" != "main" ]; then
     fi
 fi
 
+# Step 2b: Pull latest changes from remote
+print_step "Pulling latest changes from remote..."
+if [ "$DRY_RUN" = false ]; then
+    git pull origin "$CURRENT_BRANCH"
+    print_success "Local branch is up to date"
+else
+    print_warning "Would pull from origin/$CURRENT_BRANCH (dry-run)"
+fi
+
 # Step 3: Run tests
 print_step "Running test suite..."
 if ! npm test; then
@@ -166,29 +175,7 @@ else
     print_warning "Would update manifest.json to $NEW_VERSION (dry-run)"
 fi
 
-# Step 8: Update updates.json
-print_step "Updating updates.json..."
-if [ "$DRY_RUN" = false ]; then
-    python3 -c "
-import json
-with open('updates.json', 'r') as f:
-    data = json.load(f)
-addon_id = 'context-translator@bike-mazzell'
-data['addons'][addon_id]['updates'] = [{
-    'version': '$NEW_VERSION',
-    'update_link': 'https://github.com/bike-mazzell/context-translator/releases/download/v$NEW_VERSION/context-translator-$NEW_VERSION.xpi',
-    'update_info_url': 'https://github.com/bike-mazzell/context-translator/releases/tag/v$NEW_VERSION'
-}]
-with open('updates.json', 'w') as f:
-    json.dump(data, f, indent=2)
-    f.write('\n')
-"
-    print_success "updates.json updated"
-else
-    print_warning "Would update updates.json (dry-run)"
-fi
-
-# Step 9: Update CHANGELOG.md
+# Step 8: Update CHANGELOG.md (updates.json is handled by GitHub Actions)
 print_step "Updating CHANGELOG.md..."
 RELEASE_DATE=$(date +%Y-%m-%d)
 
@@ -235,22 +222,20 @@ else
     print_warning "Would update CHANGELOG.md (dry-run)"
 fi
 
-# Step 10: Validate version consistency
+# Step 9: Validate version consistency (skip updates.json - GitHub Actions handles it)
 print_step "Validating version consistency..."
 if [ "$DRY_RUN" = false ]; then
     MANIFEST_VERSION=$(node -p "require('./extension/manifest.json').version")
     PACKAGE_VERSION=$(node -p "require('./package.json').version")
-    UPDATES_VERSION=$(node -p "require('./updates.json').addons['context-translator@bike-mazzell'].updates[0].version")
 
-    if [ "$MANIFEST_VERSION" != "$NEW_VERSION" ] || [ "$PACKAGE_VERSION" != "$NEW_VERSION" ] || [ "$UPDATES_VERSION" != "$NEW_VERSION" ]; then
+    if [ "$MANIFEST_VERSION" != "$NEW_VERSION" ] || [ "$PACKAGE_VERSION" != "$NEW_VERSION" ]; then
         print_error "Version mismatch detected!"
         echo "  package.json: $PACKAGE_VERSION"
         echo "  manifest.json: $MANIFEST_VERSION"
-        echo "  updates.json: $UPDATES_VERSION"
         echo "  Expected: $NEW_VERSION"
         exit 1
     fi
-    print_success "All version files are consistent"
+    print_success "Version files are consistent"
 else
     print_warning "Would validate version consistency (dry-run)"
 fi
@@ -268,10 +253,10 @@ else
     print_warning "Would build extension package (dry-run)"
 fi
 
-# Step 12: Create git commit
+# Step 10: Create git commit (exclude updates.json - GitHub Actions updates it)
 print_step "Creating release commit..."
 if [ "$DRY_RUN" = false ]; then
-    git add package.json extension/manifest.json updates.json CHANGELOG.md
+    git add package.json extension/manifest.json CHANGELOG.md
     git commit -m "Release version $NEW_VERSION"
     print_success "Release commit created"
 else

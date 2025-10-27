@@ -25,18 +25,6 @@
         "<all_urls>"
       ],
       "exclude_matches": [
-        "*://*.bank/*",
-        "*://*.bankofamerica.com/*",
-        "*://*.chase.com/*",
-        "*://*.wellsfargo.com/*",
-        "*://*.citibank.com/*",
-        "*://*.paypal.com/*",
-        "*://*.stripe.com/*",
-        "*://accounts.google.com/*",
-        "*://login.microsoftonline.com/*",
-        "*://signin.aws.amazon.com/*",
-        "*://*.irs.gov/*",
-        "*://*.healthcare.gov/*"
       ],
       "js": [
         "content/loader.js"
