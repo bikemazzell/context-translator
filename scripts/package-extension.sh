@@ -110,6 +110,10 @@ cp "$EXTENSION_DIR/manifest.json" "$BUILD_DIR/package/"
 rsync -a --exclude='tests' --exclude='node_modules' --exclude='*.test.js' --exclude='README.md' \
     "$EXTENSION_DIR/background" \
     "$EXTENSION_DIR/content" \
+    "$EXTENSION_DIR/controllers" \
+    "$EXTENSION_DIR/core" \
+    "$EXTENSION_DIR/lib" \
+    "$EXTENSION_DIR/services" \
     "$EXTENSION_DIR/shared" \
     "$EXTENSION_DIR/popup" \
     "$EXTENSION_DIR/icons" \
