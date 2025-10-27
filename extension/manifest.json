@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Context Translator",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "description": "Context-aware translation using local LLM - No backend required!",
   "author": "Vincent (v)",
   "homepage_url": "https://github.com/bike-mazzell/context-translator",
@@ -24,8 +24,7 @@
       "matches": [
         "<all_urls>"
       ],
-      "exclude_matches": [
-      ],
+      "exclude_matches": [],
       "js": [
         "content/loader.js"
       ],
