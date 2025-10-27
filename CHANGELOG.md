@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.17] - 2025-10-27
+
+### Fixed
+- Fixed GitHub Actions workflow conflicts with local release script
+- Fixed missing directories in GitHub Actions packaging (lib, controllers, core, services)
+- Fixed response cleaner language pattern to work with any language (not just hardcoded list)
+
+### Changed
+- Unified release.sh script now handles entire release workflow
+- Release script pulls latest changes before version bump to avoid conflicts
+- GitHub Actions exclusively manages updates.json (removed from local script)
+- Response cleaner now uses generic pattern `/^\s*(in|translated (to|into))\s+[a-z]+\s*[,:]/i`
+- Removed old bump-version.sh script (functionality merged into release.sh)
+
+### Added
+- New npm scripts: `release`, `release:minor`, `release:major`, `release:dry-run`
+- Comprehensive release documentation in scripts/README.md
+
 ## [1.0.16] - 2025-10-27
 
 ## [1.0.15] - 2025-10-27
