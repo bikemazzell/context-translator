@@ -6,6 +6,11 @@
           "version": "1.0.14",
           "update_link": "https://github.com/bike-mazzell/context-translator/releases/download/v1.0.14/context-translator-1.0.14.xpi",
           "update_info_url": "https://github.com/bike-mazzell/context-translator/releases/tag/v1.0.14"
+        },
+        {
+          "version": "1.0.14",
+          "update_link": "https://github.com/bikemazzell/context-translator/releases/download/v1.0.14/context-translator-1.0.14.xpi",
+          "update_hash": "sha256:176d9936597a868d08e8717b3fcda3c647e887b6378789d5181695c5381410f3"
         }
       ]
     }
