@@ -48,13 +48,15 @@ export function cleanResponse(text, originalText = '') {
     cleaned = cleaned.replace(/^["']|["']$/g, '');
   }
 
-  // Remove explanation patterns (lines containing these phrases)
+  // Remove explanation patterns (lines that start with or only contain meta-commentary)
   const explanationPatterns = [
-    /this (means|translates to|is)/i,
-    /in (english|german|french)/i,
-    /explanation:/i,
-    /note:/i,
-    /literally:/i
+    /^\s*this (means|translates to)\b/i,
+    /^\s*(in|translated (to|into))\s+[a-z]+\s*[,:]/i,  // "In French:" or "Translated to German,"
+    /^\s*explanation:/i,
+    /^\s*note:/i,
+    /^\s*literally:/i,
+    /^\s*here'?s? the translation/i,
+    /^\s*the translation (is|would be)/i
   ];
 
   const lines = cleaned.split('\n');

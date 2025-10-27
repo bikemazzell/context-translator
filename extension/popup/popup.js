@@ -16,6 +16,7 @@ const elements = {
   settingsScreen: document.getElementById('settings-screen'),
 
   // Main screen controls
+  versionNumber: document.getElementById('version-number'),
   translatorToggle: document.getElementById('translator-toggle'),
   settingsBtn: document.getElementById('settings-btn'),
   backBtn: document.getElementById('back-btn'),
@@ -411,6 +412,10 @@ function applyDarkModeToPopup() {
  * Initialize popup
  */
 async function initPopup() {
+  // Set version from manifest
+  const manifest = browser.runtime.getManifest();
+  elements.versionNumber.textContent = `v${manifest.version}`;
+
   await controller.initialize();
 
   applyDarkModeToPopup();

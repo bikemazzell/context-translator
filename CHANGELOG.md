@@ -7,23 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.14] - 2025-10-27
+## [1.0.15] - 2025-10-27
 
-## [1.0.13] - 2025-10-26
+### Fixed
+- Fixed packaging script missing lib/, controllers/, core/, and services/ directories
+- Fixed response cleaner incorrectly filtering valid translations containing "this is"
+- Fixed inline translations extending beyond viewport boundaries
+- Fixed translations constrained to word width instead of using full viewport
 
-## [1.0.12] - 2025-10-25
+### Changed
+- Dynamic version display in popup (reads from manifest)
+- Response cleaner patterns now only match at line start (more precise filtering)
+- Inline translations now wrap text with proper word-breaking and hyphens
+- Translation positioning intelligently adjusts to stay within viewport (20px margins)
 
-## [1.0.11] - 2025-10-25
+## [1.0.14] - 2025-10-26
 
-## [1.0.10] - 2025-10-24
-
-## [1.0.9] - 2025-10-24
-
-## [1.0.8] - 2025-10-24
-
-## [1.0.7] - 2025-10-24
-
-## [1.0.6] - 2025-10-24
 
 ### Added
 - **Chrome/Chromium browser support** via webextension-polyfill
@@ -72,12 +71,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.5] - 2025-10-23
 
-## [1.0.4] - 2025-10-23
-
-## [1.0.3] - 2025-10-23
-
-## [1.0.2] - 2025-01-22
-
 ### Changed
 - Removed all inline CSS from HTML files for better code organization
 - Updated packaging scripts to match current extension structure
@@ -118,7 +111,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version Links
 
-- [Unreleased]: https://github.com/bikemazzell/context-translator/compare/v1.0.14...HEAD
+- [Unreleased]: https://github.com/bikemazzell/context-translator/compare/v1.0.15...HEAD
+- [1.0.15]: https://github.com/bikemazzell/context-translator/releases/tag/v1.0.15
 - [1.0.14]: https://github.com/bikemazzell/context-translator/releases/tag/v1.0.14
 - [1.0.13]: https://github.com/bikemazzell/context-translator/releases/tag/v1.0.13
 - [1.0.12]: https://github.com/bikemazzell/context-translator/releases/tag/v1.0.12

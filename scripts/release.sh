@@ -1,10 +1,10 @@
 #!/bin/bash
-# Context Translator - Release Preparation Script
-# Synchronizes version across all files and creates a release tag
+# Context Translator - Unified Release Script
+# Tests, bumps version, commits, tags, and pushes
 #
-# Usage: ./scripts/release.sh <version> [--dry-run]
-# Example: ./scripts/release.sh 1.0.2
-# Example: ./scripts/release.sh 1.0.2 --dry-run
+# Usage: ./scripts/release.sh [major|minor|patch] [--dry-run]
+# Example: ./scripts/release.sh patch
+# Example: ./scripts/release.sh minor --dry-run
 
 set -e
 
@@ -33,7 +33,7 @@ print_error() {
 }
 
 # Parse arguments
-VERSION=""
+BUMP_TYPE=""
 DRY_RUN=false
 
 for arg in "$@"; do
@@ -41,42 +41,36 @@ for arg in "$@"; do
         --dry-run)
             DRY_RUN=true
             ;;
+        major|minor|patch)
+            BUMP_TYPE="$arg"
+            ;;
         *)
-            if [ -z "$VERSION" ]; then
-                VERSION="$arg"
-            fi
+            print_error "Unknown argument: $arg"
+            echo "Usage: ./scripts/release.sh [major|minor|patch] [--dry-run]"
+            exit 1
             ;;
     esac
 done
 
-# Validate version argument
-if [ -z "$VERSION" ]; then
-    print_error "Version number required"
-    echo "Usage: ./scripts/release.sh <version> [--dry-run]"
-    echo "Example: ./scripts/release.sh 1.0.2"
-    exit 1
-fi
-
-# Validate semantic versioning format
-if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    print_error "Invalid version format. Must be semantic version (e.g., 1.0.2)"
-    exit 1
+# Default to patch if not specified
+if [ -z "$BUMP_TYPE" ]; then
+    BUMP_TYPE="patch"
 fi
 
 # Check if running from project root
 if [ ! -d "extension" ]; then
     print_error "Must run from project root directory"
-    echo "Usage: ./scripts/release.sh <version>"
+    echo "Usage: ./scripts/release.sh [major|minor|patch]"
     exit 1
 fi
 
 # Print header
 echo ""
 echo "========================================="
-echo " Context Translator - Release Preparation"
+echo " Context Translator - Release"
 echo "========================================="
 echo ""
-echo "Version: $VERSION"
+echo "Bump type: $BUMP_TYPE"
 if [ "$DRY_RUN" = true ]; then
     print_warning "DRY RUN MODE - No changes will be made"
 fi
@@ -104,94 +98,112 @@ if [ "$CURRENT_BRANCH" != "main" ]; then
     fi
 fi
 
-# Step 3: Check if tag already exists
-if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-    print_warning "Tag v$VERSION already exists"
-
-    # Check if tag was pushed to remote
-    if git ls-remote --tags origin | grep -q "refs/tags/v$VERSION"; then
-        print_warning "Tag v$VERSION exists on remote"
-        echo "This version has already been released and pushed."
-        echo ""
-        echo "If you need to modify this release:"
-        echo "  1. Create a new patch version (e.g., ${VERSION%.*}.$((${VERSION##*.}+1)))"
-        echo "  2. Or delete the tag locally and remotely (dangerous):"
-        echo "     git tag -d v$VERSION"
-        echo "     git push origin :refs/tags/v$VERSION"
-        exit 1
-    else
-        print_warning "Tag v$VERSION exists locally but not on remote"
-        read -p "Delete local tag and continue? (y/N) " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            if [ "$DRY_RUN" = false ]; then
-                git tag -d "v$VERSION"
-                print_success "Deleted local tag v$VERSION"
-            else
-                print_warning "Would delete local tag v$VERSION (dry-run)"
-            fi
-        else
-            print_error "Release cancelled"
-            exit 1
-        fi
-    fi
-else
-    print_success "Tag v$VERSION is available"
-fi
-
-# Step 4: Run tests
+# Step 3: Run tests
 print_step "Running test suite..."
-if ! npm test > /dev/null 2>&1; then
+if ! npm test; then
     print_error "Tests failed. Fix tests before releasing."
     exit 1
 fi
 print_success "All tests passed"
 
-# Step 5: Update manifest.json
-print_step "Updating extension/manifest.json..."
-MANIFEST_FILE="extension/manifest.json"
-CURRENT_VERSION=$(grep -oP '"version":\s*"\K[^"]+' "$MANIFEST_FILE")
+# Step 4: Get current version
+CURRENT_VERSION=$(node -p "require('./package.json').version")
+echo ""
+print_step "Version bump: $BUMP_TYPE"
 echo "  Current version: $CURRENT_VERSION"
-echo "  New version: $VERSION"
 
+# Step 5: Calculate new version
 if [ "$DRY_RUN" = false ]; then
-    # Use python to update JSON properly
+    # Use npm version to calculate new version
+    NEW_VERSION=$(npm version $BUMP_TYPE --no-git-tag-version | sed 's/^v//')
+else
+    # Calculate what the new version would be for dry-run
+    IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+    case $BUMP_TYPE in
+        major)
+            NEW_VERSION="$((MAJOR + 1)).0.0"
+            ;;
+        minor)
+            NEW_VERSION="$MAJOR.$((MINOR + 1)).0"
+            ;;
+        patch)
+            NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+            ;;
+    esac
+fi
+
+echo "  New version: $NEW_VERSION"
+
+# Step 6: Check if tag already exists
+if git rev-parse "v$NEW_VERSION" >/dev/null 2>&1; then
+    print_error "Tag v$NEW_VERSION already exists locally"
+    if git ls-remote --tags origin | grep -q "refs/tags/v$NEW_VERSION"; then
+        print_error "Tag v$NEW_VERSION also exists on remote"
+        echo "This version has already been released."
+        exit 1
+    fi
+
+    if [ "$DRY_RUN" = false ]; then
+        print_warning "Deleting local tag v$NEW_VERSION"
+        git tag -d "v$NEW_VERSION"
+    fi
+fi
+
+# Step 7: Update manifest.json
+print_step "Updating extension/manifest.json..."
+if [ "$DRY_RUN" = false ]; then
     python3 -c "
 import json
-with open('$MANIFEST_FILE', 'r') as f:
+with open('extension/manifest.json', 'r') as f:
     data = json.load(f)
-data['version'] = '$VERSION'
-with open('$MANIFEST_FILE', 'w') as f:
+data['version'] = '$NEW_VERSION'
+with open('extension/manifest.json', 'w') as f:
     json.dump(data, f, indent=2)
     f.write('\n')
 "
-    print_success "manifest.json updated"
+    print_success "manifest.json updated to $NEW_VERSION"
 else
-    print_warning "Would update manifest.json (dry-run)"
+    print_warning "Would update manifest.json to $NEW_VERSION (dry-run)"
 fi
 
-# Step 6: Update CHANGELOG.md
+# Step 8: Update updates.json
+print_step "Updating updates.json..."
+if [ "$DRY_RUN" = false ]; then
+    python3 -c "
+import json
+with open('updates.json', 'r') as f:
+    data = json.load(f)
+addon_id = 'context-translator@bike-mazzell'
+data['addons'][addon_id]['updates'] = [{
+    'version': '$NEW_VERSION',
+    'update_link': 'https://github.com/bike-mazzell/context-translator/releases/download/v$NEW_VERSION/context-translator-$NEW_VERSION.xpi',
+    'update_info_url': 'https://github.com/bike-mazzell/context-translator/releases/tag/v$NEW_VERSION'
+}]
+with open('updates.json', 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+"
+    print_success "updates.json updated"
+else
+    print_warning "Would update updates.json (dry-run)"
+fi
+
+# Step 9: Update CHANGELOG.md
 print_step "Updating CHANGELOG.md..."
-CHANGELOG_FILE="CHANGELOG.md"
 RELEASE_DATE=$(date +%Y-%m-%d)
 
 if [ "$DRY_RUN" = false ]; then
-    # Replace [Unreleased] with version and date, and add new [Unreleased] section
     python3 << EOF
 import re
-from datetime import datetime
 
-version = '$VERSION'
+version = '$NEW_VERSION'
 release_date = '$RELEASE_DATE'
-changelog_file = '$CHANGELOG_FILE'
 
-with open(changelog_file, 'r') as f:
+with open('CHANGELOG.md', 'r') as f:
     content = f.read()
 
-# Find the Unreleased section
-unreleased_pattern = r'## \[Unreleased\]'
-
 # Replace [Unreleased] with the new version
+unreleased_pattern = r'## \[Unreleased\]'
 content = re.sub(
     unreleased_pattern,
     f'## [Unreleased]\n\n## [{version}] - {release_date}',
@@ -200,14 +212,12 @@ content = re.sub(
 )
 
 # Update version links at the bottom
-# Add new version link
 version_links_pattern = r'(## Version Links.*?\n\n)(- \[Unreleased\]:.*?\n)'
 new_link = f'- [{version}]: https://github.com/bikemazzell/context-translator/releases/tag/v{version}\n'
 
 def add_version_link(match):
     header = match.group(1)
     unreleased = match.group(2)
-    # Update unreleased link to compare with new version
     unreleased_updated = re.sub(
         r'compare/v[\d.]+\.\.\.HEAD',
         f'compare/v{version}...HEAD',
@@ -217,7 +227,7 @@ def add_version_link(match):
 
 content = re.sub(version_links_pattern, add_version_link, content, flags=re.DOTALL)
 
-with open(changelog_file, 'w') as f:
+with open('CHANGELOG.md', 'w') as f:
     f.write(content)
 EOF
     print_success "CHANGELOG.md updated"
@@ -225,68 +235,99 @@ else
     print_warning "Would update CHANGELOG.md (dry-run)"
 fi
 
-# Step 7: Add version badge to README.md if not present
-print_step "Checking README.md for version badge..."
-README_FILE="README.md"
+# Step 10: Validate version consistency
+print_step "Validating version consistency..."
+if [ "$DRY_RUN" = false ]; then
+    MANIFEST_VERSION=$(node -p "require('./extension/manifest.json').version")
+    PACKAGE_VERSION=$(node -p "require('./package.json').version")
+    UPDATES_VERSION=$(node -p "require('./updates.json').addons['context-translator@bike-mazzell'].updates[0].version")
 
-if ! grep -q "!\[Version\]" "$README_FILE"; then
-    echo "  Adding version badge to README.md..."
-    if [ "$DRY_RUN" = false ]; then
-        # Add badge after title
-        sed -i '1 a\\n![Version](https://img.shields.io/github/v/release/bikemazzell/context-translator?label=version)\n![Firefox](https://img.shields.io/badge/Firefox-MV3-orange)\n![License](https://img.shields.io/badge/license-MIT-blue)' "$README_FILE"
-        print_success "Version badge added to README.md"
+    if [ "$MANIFEST_VERSION" != "$NEW_VERSION" ] || [ "$PACKAGE_VERSION" != "$NEW_VERSION" ] || [ "$UPDATES_VERSION" != "$NEW_VERSION" ]; then
+        print_error "Version mismatch detected!"
+        echo "  package.json: $PACKAGE_VERSION"
+        echo "  manifest.json: $MANIFEST_VERSION"
+        echo "  updates.json: $UPDATES_VERSION"
+        echo "  Expected: $NEW_VERSION"
+        exit 1
+    fi
+    print_success "All version files are consistent"
+else
+    print_warning "Would validate version consistency (dry-run)"
+fi
+
+# Step 11: Build and package
+print_step "Building extension package..."
+if [ "$DRY_RUN" = false ]; then
+    if ./scripts/package-extension.sh; then
+        print_success "Extension packaged successfully"
     else
-        print_warning "Would add version badge to README.md (dry-run)"
+        print_error "Package build failed"
+        exit 1
     fi
 else
-    print_success "Version badge already present"
+    print_warning "Would build extension package (dry-run)"
 fi
 
-# Step 8: Create git commit
+# Step 12: Create git commit
 print_step "Creating release commit..."
 if [ "$DRY_RUN" = false ]; then
-    git add "$MANIFEST_FILE" "$CHANGELOG_FILE" "$README_FILE"
-    git commit -m "Release version $VERSION
-
-- Update manifest.json to version $VERSION
-- Update CHANGELOG.md with release notes
-- Update README.md badges"
+    git add package.json extension/manifest.json updates.json CHANGELOG.md
+    git commit -m "Release version $NEW_VERSION"
     print_success "Release commit created"
 else
-    print_warning "Would create commit with message: 'Release version $VERSION' (dry-run)"
+    print_warning "Would create commit 'Release version $NEW_VERSION' (dry-run)"
 fi
 
-# Step 9: Create git tag
-print_step "Creating git tag v$VERSION..."
+# Step 13: Create git tag
+print_step "Creating git tag v$NEW_VERSION..."
 if [ "$DRY_RUN" = false ]; then
-    git tag -a "v$VERSION" -m "Release version $VERSION"
-    print_success "Git tag v$VERSION created"
+    git tag -a "v$NEW_VERSION" -m "Release version $NEW_VERSION"
+    print_success "Git tag v$NEW_VERSION created"
 else
-    print_warning "Would create tag v$VERSION (dry-run)"
+    print_warning "Would create tag v$NEW_VERSION (dry-run)"
 fi
 
-# Step 10: Show summary
+# Step 14: Push to remote
+echo ""
+print_step "Ready to push to remote"
+if [ "$DRY_RUN" = false ]; then
+    read -p "Push to remote now? (y/N) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        git push origin "$CURRENT_BRANCH"
+        git push origin "v$NEW_VERSION"
+        print_success "Pushed to remote"
+    else
+        print_warning "Skipped push to remote"
+        echo ""
+        echo "To push manually later:"
+        echo "  git push origin $CURRENT_BRANCH && git push origin v$NEW_VERSION"
+    fi
+else
+    print_warning "Would ask to push to remote (dry-run)"
+fi
+
+# Summary
 echo ""
 echo "========================================="
-echo " Release Preparation Complete!"
+echo " Release Complete!"
 echo "========================================="
 echo ""
-echo "Version: $VERSION"
-echo "Tag: v$VERSION"
+echo "Version: $CURRENT_VERSION → $NEW_VERSION"
+echo "Tag: v$NEW_VERSION"
 echo "Date: $RELEASE_DATE"
 echo ""
 
 if [ "$DRY_RUN" = false ]; then
-    print_success "Changes committed and tagged locally"
+    print_success "Release $NEW_VERSION is ready"
     echo ""
     echo "Next steps:"
-    echo "  1. Review the changes: git show HEAD"
-    echo "  2. Push to remote: git push origin main && git push origin v$VERSION"
-    echo "  3. GitHub Actions will automatically build and release"
+    echo "  1. GitHub Actions will build and create the release"
+    echo "  2. Verify release at: https://github.com/bike-mazzell/context-translator/releases/tag/v$NEW_VERSION"
 else
     print_warning "DRY RUN completed - no changes made"
     echo ""
-    echo "Run without --dry-run to apply changes:"
-    echo "  ./scripts/release.sh $VERSION"
+    echo "Run without --dry-run to execute:"
+    echo "  ./scripts/release.sh $BUMP_TYPE"
 fi
 echo ""

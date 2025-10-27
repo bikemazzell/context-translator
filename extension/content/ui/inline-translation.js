@@ -56,6 +56,55 @@ function attachRemoveHandler(element, inlineData) {
   });
 }
 
+function adjustTranslationPosition(translationElement, wrapper) {
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+
+  // Initially position at left edge of wrapper (left: 0)
+  translationElement.style.left = '0';
+
+  // Force layout recalculation
+  const rect = translationElement.getBoundingClientRect();
+  const translationWidth = rect.width;
+
+  let leftOffset = 0;
+
+  // Check if translation extends beyond right edge of viewport
+  if (rect.right > viewportWidth - 20) {
+    // Shift left to fit within viewport
+    leftOffset = -(rect.right - viewportWidth + 20);
+
+    // But don't shift so far that it goes off the left edge
+    const potentialLeft = rect.left + leftOffset;
+    if (potentialLeft < 20) {
+      // Translation is too wide for viewport, align to left edge
+      leftOffset = 20 - rect.left;
+    }
+  }
+
+  // Check if translation extends beyond left edge (shouldn't happen with left: 0, but check anyway)
+  if (rect.left < 20) {
+    leftOffset = 20 - rect.left;
+  }
+
+  // Apply the calculated offset
+  if (leftOffset !== 0) {
+    translationElement.style.left = `${leftOffset}px`;
+  }
+
+  // Re-check position after adjustment for vertical positioning
+  const finalRect = translationElement.getBoundingClientRect();
+
+  // Check if translation extends beyond top edge
+  if (finalRect.top < 20) {
+    // Position below the word instead
+    translationElement.style.bottom = 'auto';
+    translationElement.style.top = '100%';
+    translationElement.style.marginTop = '4px';
+    translationElement.style.marginBottom = '0';
+  }
+}
+
 function tryMergeWithAdjacent(wrapper, originalText, translation, darkMode, styleSettings) {
   const adjacent = findAdjacentTranslations(wrapper);
 
@@ -117,6 +166,7 @@ export function showInlineTranslation(translation, wordRange, originalText = '',
   attachRemoveHandler(inline, inlineData);
 
   wrapper.appendChild(inline);
+  adjustTranslationPosition(inline, wrapper);
   inlineTranslations.push(inlineData);
 }
 
@@ -361,6 +411,7 @@ export function mergeTranslations(centerTranslation, leftTranslations, rightTran
   });
 
   firstWrapper.appendChild(mergedElement);
+  adjustTranslationPosition(mergedElement, firstWrapper);
   inlineTranslations.push(mergedData);
 
   return mergedData;

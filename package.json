@@ -1,6 +1,6 @@
 {
   "name": "context-translator",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "description": "Firefox extension for contextual translation using local LLMs",
   "type": "module",
   "scripts": {
@@ -14,9 +14,10 @@
     "format:check": "prettier --check \"extension/**/*.js\"",
     "build": "npm run lint && npm test && ./scripts/package-extension.sh",
     "build:full": "npm run lint:fix && npm run test:coverage && ./scripts/package-extension.sh",
-    "version:major": "./scripts/bump-version.sh major",
-    "version:minor": "./scripts/bump-version.sh minor",
-    "version:patch": "./scripts/bump-version.sh patch"
+    "release": "./scripts/release.sh patch",
+    "release:minor": "./scripts/release.sh minor",
+    "release:major": "./scripts/release.sh major",
+    "release:dry-run": "./scripts/release.sh patch --dry-run"
   },
   "dependencies": {
     "ccusage": "^17.1.3",

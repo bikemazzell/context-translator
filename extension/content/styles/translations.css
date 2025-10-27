@@ -11,7 +11,6 @@
 /* Inline translation */
 .ct-inline-translation {
   position: absolute !important;
-  left: 0 !important;
   bottom: 100% !important;
   margin-bottom: 4px !important;
   border-radius: 4px !important;
@@ -22,10 +21,13 @@
   cursor: pointer !important;
   animation: ct-inline-in 0.2s ease-out !important;
   z-index: 2147483647 !important;
-  white-space: nowrap !important;
-  max-width: min(600px, 80vw) !important;
-  display: inline-block !important;
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  hyphens: auto !important;
+  max-width: min(600px, calc(100vw - 40px)) !important;
   width: max-content !important;
+  display: inline-block !important;
   visibility: visible !important;
   opacity: 1 !important;
   box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;

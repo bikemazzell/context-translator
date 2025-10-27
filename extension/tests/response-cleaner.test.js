@@ -165,6 +165,48 @@ describe('cleanResponse', () => {
 
     expect(result).toBe('hola');
   });
+
+  test('should not filter normal text containing "this is"', () => {
+    const input = 'Germans are happier than last year – this is what the "Happiness Atlas" 2025 shows. One state in the north is very happy. However, the satisfaction of older people is decreasing.';
+    const result = cleanResponse(input, 'Die Deutschen sind zufriedener...');
+
+    expect(result).toBe(input);
+    expect(result).toContain('this is what');
+  });
+
+  test('should filter lines starting with "this means"', () => {
+    const input = 'Happy\nThis means cheerful';
+    const result = cleanResponse(input, 'Glücklich');
+
+    expect(result).toBe('Happy');
+    expect(result).not.toContain('This means');
+  });
+
+  test('should filter lines starting with "In English"', () => {
+    const input = 'Glücklich\nIn English: Happy';
+    const result = cleanResponse(input, 'Glücklich');
+
+    expect(result).toBe('Glücklich');
+    expect(result).not.toContain('In English');
+  });
+
+  test('should filter lines starting with any language name', () => {
+    const input1 = 'Dobar dan\nIn Slovene: Good day';
+    const input2 = 'Bonjour\nTranslated to French: Hello';
+    const input3 = 'Hola\nIn Spanish, this means hello';
+
+    expect(cleanResponse(input1, 'original')).toBe('Dobar dan');
+    expect(cleanResponse(input2, 'original')).toBe('Bonjour');
+    expect(cleanResponse(input3, 'original')).toBe('Hola');
+  });
+
+  test('should not filter text containing "in the" followed by non-language words', () => {
+    const input = 'One state in the north is very happy';
+    const result = cleanResponse(input, 'original');
+
+    expect(result).toBe(input);
+    expect(result).toContain('in the north');
+  });
 });
 
 describe('extractTranslation', () => {
