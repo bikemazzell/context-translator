@@ -13,10 +13,11 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout code
+      - name: Checkout code at tag
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.ref }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -137,12 +138,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Stash any local changes (like package-lock.json from npm install)
-          git stash --include-untracked || true
-
-          # Switch to main branch and pull latest
+          # We're in detached HEAD at the tag, need to switch to main properly
+          git fetch origin main:main
           git checkout main
-          git pull origin main
 
       - name: Update updates.json
         run: |
