@@ -240,7 +240,7 @@ else
     print_warning "Would validate version consistency (dry-run)"
 fi
 
-# Step 11: Build and package
+# Step 10: Build and package
 print_step "Building extension package..."
 if [ "$DRY_RUN" = false ]; then
     if ./scripts/package-extension.sh; then
@@ -253,7 +253,23 @@ else
     print_warning "Would build extension package (dry-run)"
 fi
 
-# Step 10: Create git commit (exclude updates.json - GitHub Actions updates it)
+# Step 11: Validate with Mozilla (web-ext lint)
+print_step "Validating with Mozilla web-ext lint..."
+if [ "$DRY_RUN" = false ]; then
+    if npx web-ext lint --source-dir=dist/package; then
+        print_success "Mozilla validation passed"
+    else
+        print_error "Mozilla validation failed - fix errors before releasing"
+        echo ""
+        echo "To see detailed errors, run:"
+        echo "  npm run lint:mozilla"
+        exit 1
+    fi
+else
+    print_warning "Would validate with Mozilla web-ext lint (dry-run)"
+fi
+
+# Step 12: Create git commit (exclude updates.json - GitHub Actions updates it)
 print_step "Creating release commit..."
 if [ "$DRY_RUN" = false ]; then
     git add package.json extension/manifest.json CHANGELOG.md

@@ -7,14 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.18] - 2025-10-27
-
 ## [1.0.17] - 2025-10-27
 
 ### Fixed
 - Fixed GitHub Actions workflow conflicts with local release script
 - Fixed missing directories in GitHub Actions packaging (lib, controllers, core, services)
 - Fixed response cleaner language pattern to work with any language (not just hardcoded list)
+- Fixed manifest.json validation error (removed empty exclude_matches array)
 
 ### Changed
 - Unified release.sh script now handles entire release workflow
@@ -26,8 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - New npm scripts: `release`, `release:minor`, `release:major`, `release:dry-run`
 - Comprehensive release documentation in scripts/README.md
+- Mozilla web-ext lint validation in release script (catches issues before GitHub Actions)
 
-## [1.0.16] - 2025-10-27
 
 ## [1.0.15] - 2025-10-27
 
