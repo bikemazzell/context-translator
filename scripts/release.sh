@@ -272,7 +272,7 @@ fi
 # Step 12: Create git commit (exclude updates.json - GitHub Actions updates it)
 print_step "Creating release commit..."
 if [ "$DRY_RUN" = false ]; then
-    git add package.json extension/manifest.json CHANGELOG.md
+    git add package.json package-lock.json extension/manifest.json CHANGELOG.md
     git commit -m "Release version $NEW_VERSION"
     print_success "Release commit created"
 else
