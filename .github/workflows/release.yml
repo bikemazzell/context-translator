@@ -132,6 +132,18 @@ jobs:
           echo "sha256=$HASH" >> $GITHUB_OUTPUT
           echo "Extension SHA256: $HASH"
 
+      - name: Prepare git for updates.json commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Stash any local changes (like package-lock.json from npm install)
+          git stash --include-untracked || true
+
+          # Switch to main branch and pull latest
+          git checkout main
+          git pull origin main
+
       - name: Update updates.json
         run: |
           VERSION="${{ steps.version.outputs.version }}"
@@ -158,17 +170,7 @@ jobs:
 
       - name: Commit updated updates.json
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Stash any local changes (like package-lock.json from npm install)
-          git stash --include-untracked
-
-          # Switch to main branch and pull latest
-          git checkout main
-          git pull origin main
-
-          # Make changes and commit
+          # Commit and push the updates.json changes
           git add updates.json
           git commit -m "Update updates.json for version ${{ steps.version.outputs.version }}"
           git push origin main

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Fixed GitHub Actions workflow step ordering (prepare git before updating updates.json)
+
 ## [1.0.20] - 2025-10-27
 
 ## [1.0.19] - 2025-10-27
