@@ -183,6 +183,42 @@ describe('ContentController', () => {
 
       await expect(controller.initialize()).resolves.toBeUndefined();
     });
+
+    it('should restore enabled state from settings', async () => {
+      mockSettingsManager.getAll.mockReturnValue({
+        displayMode: 'inline',
+        enabled: true
+      });
+
+      await controller.initialize();
+
+      expect(controller.isActive()).toBe(true);
+      expect(mockClickHandler.attach).toHaveBeenCalledWith(expect.any(Function));
+      expect(mockLogger.debug).toHaveBeenCalledWith('Translator restored from saved state');
+    });
+
+    it('should not activate if settings.enabled is false', async () => {
+      mockSettingsManager.getAll.mockReturnValue({
+        displayMode: 'inline',
+        enabled: false
+      });
+
+      await controller.initialize();
+
+      expect(controller.isActive()).toBe(false);
+      expect(mockClickHandler.attach).not.toHaveBeenCalled();
+    });
+
+    it('should not show toast when restoring enabled state', async () => {
+      mockSettingsManager.getAll.mockReturnValue({
+        displayMode: 'inline',
+        enabled: true
+      });
+
+      await controller.initialize();
+
+      expect(mockUI.showToast).not.toHaveBeenCalled();
+    });
   });
 
   describe('activate', () => {

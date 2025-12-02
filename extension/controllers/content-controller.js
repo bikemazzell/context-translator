@@ -60,6 +60,13 @@ export class ContentController {
       // Create bound message handler
       this._messageHandler = this.handleMessage.bind(this);
       this.browser.runtime.onMessage.addListener(this._messageHandler);
+
+      // Restore enabled state from settings (without showing toast)
+      if (settings.enabled) {
+        this._isActive = true;
+        this.clickHandler.attach(this._handleTranslationRequest.bind(this));
+        this.logger.debug('Translator restored from saved state');
+      }
     } catch (error) {
       this.logger.error('Failed to initialize:', error);
     }
