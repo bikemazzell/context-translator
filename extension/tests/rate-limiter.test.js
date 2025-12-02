@@ -231,6 +231,72 @@ describe('RateLimiter', () => {
     });
   });
 
+  describe('configure', () => {
+    test('should update maxRequests', () => {
+      limiter = new RateLimiter(10, 60000);
+      expect(limiter.maxRequests).toBe(10);
+
+      limiter.configure(20);
+      expect(limiter.maxRequests).toBe(20);
+    });
+
+    test('should update windowMs when provided', () => {
+      limiter = new RateLimiter(10, 60000);
+      expect(limiter.windowMs).toBe(60000);
+
+      limiter.configure(10, 30000);
+      expect(limiter.windowMs).toBe(30000);
+    });
+
+    test('should not update windowMs when null', () => {
+      limiter = new RateLimiter(10, 60000);
+
+      limiter.configure(20, null);
+      expect(limiter.windowMs).toBe(60000);
+      expect(limiter.maxRequests).toBe(20);
+    });
+
+    test('should ignore invalid maxRequests', () => {
+      limiter = new RateLimiter(10, 60000);
+
+      limiter.configure(0);
+      expect(limiter.maxRequests).toBe(10);
+
+      limiter.configure(-1);
+      expect(limiter.maxRequests).toBe(10);
+
+      limiter.configure('invalid');
+      expect(limiter.maxRequests).toBe(10);
+    });
+
+    test('should ignore invalid windowMs', () => {
+      limiter = new RateLimiter(10, 60000);
+
+      limiter.configure(10, 0);
+      expect(limiter.windowMs).toBe(60000);
+
+      limiter.configure(10, -1);
+      expect(limiter.windowMs).toBe(60000);
+    });
+
+    test('should apply new limit immediately', async () => {
+      limiter = new RateLimiter(2, 1000);
+
+      await limiter.acquire();
+      await limiter.acquire();
+      await expect(limiter.acquire()).rejects.toThrow();
+
+      // Increase limit
+      limiter.configure(5);
+
+      // Should now allow more requests
+      await expect(limiter.acquire()).resolves.not.toThrow();
+      await expect(limiter.acquire()).resolves.not.toThrow();
+      await expect(limiter.acquire()).resolves.not.toThrow();
+      await expect(limiter.acquire()).rejects.toThrow();
+    });
+  });
+
   describe('concurrent access', () => {
     test('should handle concurrent acquire attempts', async () => {
       limiter = new RateLimiter(10, 1000);

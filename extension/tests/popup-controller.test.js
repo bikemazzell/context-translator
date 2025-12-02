@@ -258,6 +258,28 @@ describe('PopupController', () => {
     });
   });
 
+  describe('buildLlmEndpoint', () => {
+    it('should build endpoint from host and port', () => {
+      const endpoint = controller.buildLlmEndpoint('192.168.1.100', 8080);
+      expect(endpoint).toBe('http://192.168.1.100:8080/v1/chat/completions');
+    });
+
+    it('should use default host if not provided', () => {
+      const endpoint = controller.buildLlmEndpoint(null, 8080);
+      expect(endpoint).toBe('http://localhost:8080/v1/chat/completions');
+    });
+
+    it('should use default port if not provided', () => {
+      const endpoint = controller.buildLlmEndpoint('myserver', null);
+      expect(endpoint).toBe('http://myserver:1234/v1/chat/completions');
+    });
+
+    it('should use defaults for both if not provided', () => {
+      const endpoint = controller.buildLlmEndpoint(null, null);
+      expect(endpoint).toBe('http://localhost:1234/v1/chat/completions');
+    });
+  });
+
   describe('Settings Management', () => {
     it('should save setting', async () => {
       await controller.saveSetting('darkMode', 'dark');
@@ -290,25 +312,111 @@ describe('PopupController', () => {
 
       expect(controller.currentSettings.darkMode).toBe('dark');
     });
+
+    it('should update llmEndpoint when llmHost changes', async () => {
+      controller.currentSettings = { llmHost: 'localhost', llmPort: 1234 };
+
+      await controller.saveSetting('llmHost', '192.168.1.50');
+
+      expect(mockSettingsService.setSetting).toHaveBeenCalledWith('llmHost', '192.168.1.50');
+      expect(mockSettingsService.setSetting).toHaveBeenCalledWith(
+        'llmEndpoint',
+        'http://192.168.1.50:1234/v1/chat/completions'
+      );
+      expect(controller.currentSettings.llmEndpoint).toBe('http://192.168.1.50:1234/v1/chat/completions');
+    });
+
+    it('should update llmEndpoint when llmPort changes', async () => {
+      controller.currentSettings = { llmHost: 'localhost', llmPort: 1234 };
+
+      await controller.saveSetting('llmPort', 8080);
+
+      expect(mockSettingsService.setSetting).toHaveBeenCalledWith('llmPort', 8080);
+      expect(mockSettingsService.setSetting).toHaveBeenCalledWith(
+        'llmEndpoint',
+        'http://localhost:8080/v1/chat/completions'
+      );
+      expect(controller.currentSettings.llmEndpoint).toBe('http://localhost:8080/v1/chat/completions');
+    });
+
+    it('should not update llmEndpoint for other settings', async () => {
+      controller.currentSettings = { sourceLang: 'English' };
+
+      await controller.saveSetting('sourceLang', 'German');
+
+      expect(mockSettingsService.setSetting).toHaveBeenCalledTimes(1);
+      expect(mockSettingsService.setSetting).toHaveBeenCalledWith('sourceLang', 'German');
+    });
   });
 
   describe('Translator Toggle', () => {
-    it('should toggle translator', async () => {
+    it('should toggle translator successfully', async () => {
+      mockMessenger.queryTabs.mockResolvedValue([{ id: 1, url: 'https://example.com' }]);
       mockMessenger.sendTabMessage.mockResolvedValue({ success: true });
 
-      await controller.toggleTranslator();
+      const result = await controller.toggleTranslator();
 
       expect(mockMessenger.queryTabs).toHaveBeenCalled();
       expect(mockMessenger.sendTabMessage).toHaveBeenCalledWith(
         expect.any(Number),
         { action: 'toggle' }
       );
+      expect(result.success).toBe(true);
     });
 
-    it('should handle toggle errors gracefully', async () => {
+    it('should return error when no active tab found', async () => {
+      mockMessenger.queryTabs.mockResolvedValue([]);
+
+      const result = await controller.toggleTranslator();
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('No active tab found');
+    });
+
+    it('should return error for about: pages', async () => {
+      mockMessenger.queryTabs.mockResolvedValue([{ id: 1, url: 'about:blank' }]);
+
+      const result = await controller.toggleTranslator();
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Cannot use translator on this page');
+    });
+
+    it('should return error for moz-extension: pages', async () => {
+      mockMessenger.queryTabs.mockResolvedValue([{ id: 1, url: 'moz-extension://abc123/popup.html' }]);
+
+      const result = await controller.toggleTranslator();
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Cannot use translator on this page');
+    });
+
+    it('should return error for chrome: pages', async () => {
+      mockMessenger.queryTabs.mockResolvedValue([{ id: 1, url: 'chrome://settings' }]);
+
+      const result = await controller.toggleTranslator();
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Cannot use translator on this page');
+    });
+
+    it('should return error when sendTabMessage fails', async () => {
+      mockMessenger.queryTabs.mockResolvedValue([{ id: 1, url: 'https://example.com' }]);
+      mockMessenger.sendTabMessage.mockRejectedValue(new Error('Connection failed'));
+
+      const result = await controller.toggleTranslator();
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Connection failed');
+    });
+
+    it('should return error when queryTabs fails', async () => {
       mockMessenger.queryTabs.mockRejectedValue(new Error('No tabs'));
 
-      await expect(controller.toggleTranslator()).resolves.toBeUndefined();
+      const result = await controller.toggleTranslator();
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('No tabs');
     });
   });
 

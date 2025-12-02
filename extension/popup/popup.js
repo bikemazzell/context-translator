@@ -98,7 +98,19 @@ function bindEvents() {
 
   // Translator toggle
   elements.translatorToggle.addEventListener('change', async () => {
-    await controller.toggleTranslator();
+    const previousState = !elements.translatorToggle.checked;
+    const result = await controller.toggleTranslator();
+
+    if (!result.success) {
+      // Revert toggle state on failure
+      elements.translatorToggle.checked = previousState;
+
+      // Show error to user (brief visual feedback)
+      elements.translatorToggle.parentElement?.classList.add('error-flash');
+      setTimeout(() => {
+        elements.translatorToggle.parentElement?.classList.remove('error-flash');
+      }, 300);
+    }
   });
 
   // Setting change handlers

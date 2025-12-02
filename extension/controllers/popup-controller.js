@@ -139,6 +139,18 @@ export class PopupController {
   }
 
   /**
+   * Build LLM endpoint URL from host and port
+   * @param {string} host - LLM host
+   * @param {number} port - LLM port
+   * @returns {string} Full endpoint URL
+   */
+  buildLlmEndpoint(host, port) {
+    const cleanHost = host || 'localhost';
+    const cleanPort = port || 1234;
+    return `http://${cleanHost}:${cleanPort}/v1/chat/completions`;
+  }
+
+  /**
    * Save setting
    * @param {string} key - Setting key
    * @param {any} value - Setting value
@@ -149,6 +161,17 @@ export class PopupController {
     // Update current settings
     if (this.currentSettings) {
       this.currentSettings[key] = value;
+    }
+
+    // When llmHost or llmPort changes, also update llmEndpoint
+    if (key === 'llmHost' || key === 'llmPort') {
+      const host = key === 'llmHost' ? value : this.currentSettings?.llmHost;
+      const port = key === 'llmPort' ? value : this.currentSettings?.llmPort;
+      const endpoint = this.buildLlmEndpoint(host, port);
+      await this.settingsService.setSetting('llmEndpoint', endpoint);
+      if (this.currentSettings) {
+        this.currentSettings.llmEndpoint = endpoint;
+      }
     }
 
     // Apply dark mode if changed
@@ -162,15 +185,26 @@ export class PopupController {
 
   /**
    * Toggle translator in active tab
+   * @returns {Promise<{success: boolean, error?: string}>} Result object
    */
   async toggleTranslator() {
     try {
       const tabs = await this.messenger.queryTabs({ active: true, currentWindow: true });
-      if (tabs.length > 0) {
-        await this.messenger.sendTabMessage(tabs[0].id, { action: 'toggle' });
+      if (tabs.length === 0) {
+        return { success: false, error: 'No active tab found' };
       }
-    } catch {
-      // Handle errors gracefully
+
+      const tab = tabs[0];
+
+      // Check if tab URL is valid for content scripts
+      if (!tab.url || tab.url.startsWith('about:') || tab.url.startsWith('moz-extension:') || tab.url.startsWith('chrome:')) {
+        return { success: false, error: 'Cannot use translator on this page' };
+      }
+
+      await this.messenger.sendTabMessage(tab.id, { action: 'toggle' });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message || 'Failed to toggle translator' };
     }
   }
 

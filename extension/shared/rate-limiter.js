@@ -53,4 +53,18 @@ export class RateLimiter {
     this.requests = this.requests.filter(t => now - t < this.windowMs);
     return this.requests.length;
   }
+
+  /**
+   * Configure rate limiter with new settings
+   * @param {number} maxRequests - Maximum requests per window
+   * @param {number} windowMs - Time window in milliseconds (optional)
+   */
+  configure(maxRequests, windowMs = null) {
+    if (typeof maxRequests === 'number' && maxRequests >= 1) {
+      this.maxRequests = maxRequests;
+    }
+    if (typeof windowMs === 'number' && windowMs > 0) {
+      this.windowMs = windowMs;
+    }
+  }
 }

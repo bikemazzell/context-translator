@@ -25,6 +25,44 @@ const llmClient = new LLMClient(logger, rateLimiter);
 configureDependencies(cacheManager, llmClient, languageManager);
 
 /**
+ * Build LLM endpoint URL from host and port
+ * @param {string} host - LLM host
+ * @param {number} port - LLM port
+ * @returns {string} Full endpoint URL
+ */
+function buildLlmEndpoint(host, port) {
+  const cleanHost = host || 'localhost';
+  const cleanPort = port || 1234;
+  return `http://${cleanHost}:${cleanPort}/v1/chat/completions`;
+}
+
+/**
+ * Apply settings to LLM client and rate limiter
+ * @param {Object} settings - Settings object
+ */
+function applySettings(settings) {
+  if (!settings) {
+    return;
+  }
+
+  // Build endpoint from host/port if llmEndpoint is missing
+  let endpoint = settings.llmEndpoint;
+  if (!endpoint && (settings.llmHost || settings.llmPort)) {
+    endpoint = buildLlmEndpoint(settings.llmHost, settings.llmPort);
+  }
+
+  if (endpoint) {
+    llmClient.configure(endpoint, settings.llmModel, settings.useRateLimit);
+  }
+
+  // Apply rate limit setting
+  if (typeof settings.rateLimit === 'number') {
+    rateLimiter.configure(settings.rateLimit);
+    logger.debug('Rate limiter configured:', settings.rateLimit, 'requests per minute');
+  }
+}
+
+/**
  * Initialize background service
  */
 async function initialize() {
@@ -39,14 +77,9 @@ async function initialize() {
     await languageManager.init();
     logger.info('Language manager initialized');
 
-    // Load settings to configure LLM client
+    // Load settings to configure LLM client and rate limiter
     const stored = await browser.storage.local.get('settings');
-    if (stored.settings) {
-      const { llmEndpoint, llmModel, useRateLimit } = stored.settings;
-      if (llmEndpoint) {
-        llmClient.configure(llmEndpoint, llmModel, useRateLimit);
-      }
-    }
+    applySettings(stored.settings);
 
     logger.info('Context Translator background service ready');
 
@@ -61,9 +94,9 @@ async function initialize() {
 browser.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local' && changes.settings) {
     const newSettings = changes.settings.newValue;
-    if (newSettings && newSettings.llmEndpoint) {
-      llmClient.configure(newSettings.llmEndpoint, newSettings.llmModel, newSettings.useRateLimit);
-      logger.info('LLM client reconfigured from settings');
+    if (newSettings) {
+      applySettings(newSettings);
+      logger.info('Settings applied from storage change');
     }
   }
 });

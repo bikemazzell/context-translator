@@ -11,6 +11,7 @@ describe('service-worker', () => {
   let consoleDebugSpy;
   let cacheManagerSpy;
   let llmClientSpy;
+  let rateLimiterSpy;
 
   // Storage listeners
   let storageChangeListeners = [];
@@ -73,6 +74,7 @@ describe('service-worker', () => {
     // Mock DI dependencies - spy on prototype methods
     const TranslationCacheModule = await import('../lib/translation/translation-cache.js');
     const LLMClientModule = await import('../lib/translation/llm-client.js');
+    const RateLimiterModule = await import('../shared/rate-limiter.js');
 
     cacheManagerSpy = {
       init: jest.spyOn(TranslationCacheModule.TranslationCache.prototype, 'init').mockResolvedValue(undefined),
@@ -81,6 +83,10 @@ describe('service-worker', () => {
 
     llmClientSpy = {
       configure: jest.spyOn(LLMClientModule.LLMClient.prototype, 'configure').mockImplementation()
+    };
+
+    rateLimiterSpy = {
+      configure: jest.spyOn(RateLimiterModule.RateLimiter.prototype, 'configure').mockImplementation()
     };
   });
 
@@ -91,6 +97,7 @@ describe('service-worker', () => {
     cacheManagerSpy.init.mockRestore();
     cacheManagerSpy.close.mockRestore();
     llmClientSpy.configure.mockRestore();
+    rateLimiterSpy.configure.mockRestore();
 
     // Clear module cache to allow re-importing
     jest.resetModules();
@@ -136,7 +143,27 @@ describe('service-worker', () => {
       expect(llmClientSpy.configure).not.toHaveBeenCalled();
     });
 
-    test('should not configure LLM client if no llmEndpoint in settings', async () => {
+    test('should build llmEndpoint from llmHost and llmPort if llmEndpoint missing', async () => {
+      mockBrowser.storage.local.get.mockResolvedValue({
+        settings: {
+          llmHost: '192.168.1.100',
+          llmPort: 8080,
+          llmModel: 'custom-model',
+          useRateLimit: false
+        }
+      });
+
+      await import('../background/service-worker-main.js');
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(llmClientSpy.configure).toHaveBeenCalledWith(
+        'http://192.168.1.100:8080/v1/chat/completions',
+        'custom-model',
+        false
+      );
+    });
+
+    test('should not configure LLM client if no endpoint info in settings', async () => {
       mockBrowser.storage.local.get.mockResolvedValue({
         settings: {
           sourceLang: 'German',
@@ -148,6 +175,33 @@ describe('service-worker', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
 
       expect(llmClientSpy.configure).not.toHaveBeenCalled();
+    });
+
+    test('should configure rate limiter with rateLimit setting', async () => {
+      mockBrowser.storage.local.get.mockResolvedValue({
+        settings: {
+          llmEndpoint: 'http://localhost:1234/v1/chat',
+          rateLimit: 20
+        }
+      });
+
+      await import('../background/service-worker-main.js');
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(rateLimiterSpy.configure).toHaveBeenCalledWith(20);
+    });
+
+    test('should not configure rate limiter if rateLimit not set', async () => {
+      mockBrowser.storage.local.get.mockResolvedValue({
+        settings: {
+          llmEndpoint: 'http://localhost:1234/v1/chat'
+        }
+      });
+
+      await import('../background/service-worker-main.js');
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(rateLimiterSpy.configure).not.toHaveBeenCalled();
     });
 
     test('should handle initialization errors gracefully', async () => {
@@ -242,7 +296,33 @@ describe('service-worker', () => {
       expect(llmClientSpy.configure).not.toHaveBeenCalled();
     });
 
-    test('should ignore settings changes without llmEndpoint', async () => {
+    test('should handle settings changes with llmHost/llmPort but no llmEndpoint', async () => {
+      await import('../background/service-worker-main.js');
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      llmClientSpy.configure.mockClear();
+
+      const listener = storageChangeListeners[storageChangeListeners.length - 1];
+      const changes = {
+        settings: {
+          newValue: {
+            llmHost: 'myserver.local',
+            llmPort: 5000,
+            llmModel: 'gpt-custom'
+          }
+        }
+      };
+
+      listener(changes, 'local');
+
+      expect(llmClientSpy.configure).toHaveBeenCalledWith(
+        'http://myserver.local:5000/v1/chat/completions',
+        'gpt-custom',
+        undefined
+      );
+    });
+
+    test('should ignore settings changes without any endpoint info', async () => {
       await import('../background/service-worker-main.js');
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -260,6 +340,27 @@ describe('service-worker', () => {
       listener(changes, 'local');
 
       expect(llmClientSpy.configure).not.toHaveBeenCalled();
+    });
+
+    test('should configure rate limiter when rateLimit setting changes', async () => {
+      await import('../background/service-worker-main.js');
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      rateLimiterSpy.configure.mockClear();
+
+      const listener = storageChangeListeners[storageChangeListeners.length - 1];
+      const changes = {
+        settings: {
+          newValue: {
+            llmEndpoint: 'http://localhost:1234/v1/chat',
+            rateLimit: 30
+          }
+        }
+      };
+
+      listener(changes, 'local');
+
+      expect(rateLimiterSpy.configure).toHaveBeenCalledWith(30);
     });
 
     test('should ignore settings changes with null newValue', async () => {
