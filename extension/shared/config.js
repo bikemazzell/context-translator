@@ -49,7 +49,7 @@ export const CONFIG = {
   defaults: {
     sourceLang: 'German',
     targetLang: 'English',
-    contextMode: false,
+    contextMode: true,
     contextWindowChars: 200,
     displayMode: 'inline', // 'inline' or 'tooltip'
     darkMode: 'auto', // 'auto', 'light', or 'dark'

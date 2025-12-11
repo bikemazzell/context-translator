@@ -55,10 +55,11 @@ function applySettings(settings) {
     llmClient.configure(endpoint, settings.llmModel, settings.useRateLimit);
   }
 
-  // Apply rate limit setting
+  // Apply rate limit setting (configure the rate, but actual enforcement depends on useRateLimit)
   if (typeof settings.rateLimit === 'number') {
     rateLimiter.configure(settings.rateLimit);
-    logger.debug('Rate limiter configured:', settings.rateLimit, 'requests per minute');
+    const isEnabled = llmClient.useRateLimit;
+    logger.debug(`Rate limiter: ${isEnabled ? 'enabled' : 'disabled'} (${settings.rateLimit} requests/min when active)`);
   }
 }
 

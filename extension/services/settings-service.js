@@ -35,7 +35,7 @@ export class SettingsService {
       useRateLimit: false,
       rateLimit: 10,
       useCache: true,
-      contextMode: false,
+      contextMode: true,
       contextWindowChars: 200
     };
   }
